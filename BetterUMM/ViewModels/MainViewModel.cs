@@ -157,8 +157,9 @@ namespace BetterUMM.ViewModels
 
                 OnPropertyChanged(nameof(TargetPatchMethod));
             }
-            catch
+            catch (Exception ex)
             {
+                LoggerService.LogException(ex, "RefreshPatchStatus");
                 PatchStatus = PatchStatus.NotInstalled;
             }
         }
@@ -173,12 +174,19 @@ namespace BetterUMM.ViewModels
             string gameDir = System.IO.Path.GetDirectoryName(SelectedGame.Path)!;
             string modsPath = System.IO.Path.Combine(gameDir, SelectedGame.ModsDirectory);
 
-            var mods = _modService.ScanMods(modsPath);
-            foreach (var mod in mods)
+            try
             {
-                mod.MarkAsClean(); // 로드 시점을 기준으로 dirty 추적 시작
-                mod.PropertyChanged += OnModPropertyChanged;
-                Mods.Add(mod);
+                var mods = _modService.ScanMods(modsPath);
+                foreach (var mod in mods)
+                {
+                    mod.MarkAsClean(); // 로드 시점을 기준으로 dirty 추적 시작
+                    mod.PropertyChanged += OnModPropertyChanged;
+                    Mods.Add(mod);
+                }
+            }
+            catch (Exception ex)
+            {
+                LoggerService.LogException(ex, "LoadMods");
             }
 
             OnPropertyChanged(nameof(HasUnsavedChanges));
@@ -210,6 +218,7 @@ namespace BetterUMM.ViewModels
             }
             catch (Exception ex)
             {
+                LoggerService.LogException(ex, "SaveModStates");
                 System.Windows.MessageBox.Show($"저장 실패: {ex.Message}", "오류",
                     System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Error);
             }
@@ -243,6 +252,7 @@ namespace BetterUMM.ViewModels
             }
             catch (Exception ex)
             {
+                LoggerService.LogException(ex, "InstallMod");
                 System.Windows.MessageBox.Show($"설치 실패: {ex.Message}", "오류",
                     System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Error);
             }

@@ -89,7 +89,7 @@ namespace BetterUMM.Services
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"Doorstop install failed: {ex}");
+                LoggerService.LogException(ex, "InstallDoorstop");
                 RestoreBackups(backups);
                 return false;
             }
@@ -117,7 +117,7 @@ namespace BetterUMM.Services
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"Doorstop remove failed: {ex}");
+                LoggerService.LogException(ex, "RemoveDoorstop");
                 return false;
             }
         }
@@ -153,7 +153,7 @@ namespace BetterUMM.Services
                 var entryMethod = FindMethod(assembly, typeName, methodName);
                 if (entryMethod == null)
                 {
-                    Console.WriteLine($"Entry point not found: {typeName}.{methodName}");
+                    LoggerService.Log($"Entry point not found: {typeName}.{methodName}", "ERROR");
                     return false;
                 }
 
@@ -184,7 +184,7 @@ namespace BetterUMM.Services
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"Assembly install failed: {ex}");
+                LoggerService.LogException(ex, "InstallAssembly");
                 RestoreBackups(backups);
                 return false;
             }
@@ -230,7 +230,7 @@ namespace BetterUMM.Services
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"Assembly remove failed: {ex}");
+                LoggerService.LogException(ex, "RemoveAssembly");
                 return false;
             }
         }
@@ -445,7 +445,11 @@ namespace BetterUMM.Services
                 var machine = reader.ReadUInt16();
                 return machine == 0x8664 || machine == 0x0200;          // AMD64 / IA64
             }
-            catch { return null; }
+            catch (Exception ex)
+            {
+                LoggerService.LogException(ex, $"IsExecutable64Bit: {filePath}");
+                return null;
+            }
         }
 
         private static void MakeBackup(string path, List<string> tracked)

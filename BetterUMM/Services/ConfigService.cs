@@ -30,8 +30,7 @@ namespace BetterUMM.Services
             }
             catch (Exception ex)
             {
-                // Handle error (e.g., logging)
-                Console.WriteLine($"Error loading config: {ex.Message}");
+                LoggerService.LogException(ex, "LoadConfig");
             }
         }
 

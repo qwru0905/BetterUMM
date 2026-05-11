@@ -46,7 +46,10 @@ namespace BetterUMM.Services
 
                     mods.Add(mod);
                 }
-                catch { /* Invalid Info.json, skip */ }
+                catch (Exception ex)
+                {
+                    LoggerService.LogException(ex, $"ScanMods: {dir}");
+                }
             }
             return mods;
         }
@@ -63,8 +66,9 @@ namespace BetterUMM.Services
                 var param = (ModParams?)serializer.Deserialize(reader);
                 return param?.Enabled ?? true;
             }
-            catch
+            catch (Exception ex)
             {
+                LoggerService.LogException(ex, $"ReadEnabledFromParams: {modFolder}");
                 return true;
             }
         }
@@ -91,6 +95,7 @@ namespace BetterUMM.Services
             }
             catch (Exception ex)
             {
+                LoggerService.LogException(ex, $"SaveEnabledState: {mod.Id}");
                 throw new IOException($"Params.xml 저장 실패 ({mod.Id}): {ex.Message}", ex);
             }
         }
