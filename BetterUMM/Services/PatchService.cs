@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Reflection;
+using System.Xml.Serialization;
 using BetterUMM.Models;
 using Mono.Cecil;
 using Mono.Cecil.Cil;
@@ -52,17 +53,20 @@ namespace BetterUMM.Services
             string ummDir = Path.Combine(managedPath, UmmSubDir);
             string doorstopPath = Path.Combine(gameRoot, DoorstopDllFile);
             string configPath = Path.Combine(gameRoot, DoorstopConfigFile);
+            string gameConfigPath = Path.Combine(ummDir, "Config.xml");
 
             var backups = new List<string>();
             try
             {
-                Directory.CreateDirectory(ummDir);
+                if (!Directory.Exists(ummDir))
+                    Directory.CreateDirectory(ummDir);
 
                 bool? is64 = IsExecutable64Bit(game.Path);
                 string srcDll = is64 == true ? doorstopX64Path : doorstopX86Path;
 
                 MakeBackup(doorstopPath, backups);
                 MakeBackup(configPath, backups);
+                MakeBackup(gameConfigPath, backups);
 
                 File.Copy(srcDll, doorstopPath, true);
 
@@ -73,7 +77,12 @@ namespace BetterUMM.Services
                     $"[General]{Environment.NewLine}enabled = true{Environment.NewLine}target_assembly = {relTarget}");
 
                 foreach (var lib in libraryPaths)
-                    File.Copy(lib, Path.Combine(ummDir, Path.GetFileName(lib)), true);
+                {
+                    string dest = Path.Combine(ummDir, Path.GetFileName(lib));
+                    File.Copy(lib, dest, true);
+                }
+
+                ExportConfig(game, gameConfigPath);
 
                 DeleteBackups(backups);
                 return true;
@@ -84,6 +93,13 @@ namespace BetterUMM.Services
                 RestoreBackups(backups);
                 return false;
             }
+        }
+
+        private void ExportConfig(GameInfo game, string destPath)
+        {
+            var serializer = new XmlSerializer(typeof(GameInfo));
+            using var writer = new StreamWriter(destPath);
+            serializer.Serialize(writer, game);
         }
 
         public bool RemoveDoorstop(GameInfo game)

@@ -61,9 +61,21 @@ namespace BetterUMM.Services
         public string ModsDirectory { get; set; } = "Mods";
         [XmlElement("ModInfo")]
         public string ModInfo { get; set; } = "Info.json";
-        [XmlElement("AssemblyName")]
-        public string AssemblyName { get; set; } = "Assembly-CSharp.dll";
-        [XmlElement("PatchTarget")]
-        public string PatchTarget { get; set; } = string.Empty;
+        [XmlElement("GameExe")]
+        public string GameExe { get; set; } = string.Empty;
+        [XmlElement("EntryPoint")]
+        public string EntryPoint { get; set; } = string.Empty;
+        [XmlElement("StartingPoint")]
+        public string StartingPoint { get; set; } = string.Empty;
+        [XmlElement("UIStartingPoint")]
+        public string UIStartingPoint { get; set; } = string.Empty;
+        [XmlElement("OldPatchTarget")]
+        public string OldPatchTarget { get; set; } = string.Empty;
+        [XmlElement("GameVersionPoint")]
+        public string GameVersionPoint { get; set; } = string.Empty;
+        [XmlElement("MinimalManagerVersion")]
+        public string MinimalManagerVersion { get; set; } = string.Empty;
+        [XmlElement("HarmonyVersion")]
+        public string HarmonyVersion { get; set; } = string.Empty;
     }
 }

@@ -88,7 +88,7 @@ namespace BetterUMM.ViewModels
             _configService.LoadConfig();
             foreach (var config in _configService.GetAllConfigs())
             {
-                Games.Add(new GameInfo { Name = config.Name, AssemblyName = config.AssemblyName, PatchTarget = config.PatchTarget });
+                Games.Add(new GameInfo { Name = config.Name, Folder = config.Folder });
             }
 
             PatchCommand = new RelayCommand(_ => PatchSelectedGame());
@@ -115,9 +115,21 @@ namespace BetterUMM.ViewModels
                 Name = config?.Name ?? Path.GetFileNameWithoutExtension(path),
                 Path = path,
                 GameDataPath = Path.Combine(Path.GetDirectoryName(path)!, $"{Path.GetFileNameWithoutExtension(path)}_Data"),
-                AssemblyName = config?.AssemblyName ?? "Assembly-CSharp.dll",
-                PatchTarget = config?.PatchTarget ?? string.Empty,
-                CurrentPatchMethod = PatchMethod.Doorstop
+                AssemblyName = config != null ? (config.EntryPoint.Split('[', ']').Length > 2 ? config.EntryPoint.Split('[', ']')[1] : "Assembly-CSharp.dll") : "Assembly-CSharp.dll",
+                PatchTarget = config?.EntryPoint ?? string.Empty,
+                CurrentPatchMethod = PatchMethod.Doorstop,
+                
+                Folder = config?.Folder ?? folderName,
+                ModsDirectory = config?.ModsDirectory ?? "Mods",
+                ModInfo = config?.ModInfo ?? "Info.json",
+                GameExe = config?.GameExe ?? Path.GetFileName(path),
+                EntryPoint = config?.EntryPoint ?? string.Empty,
+                StartingPoint = config?.StartingPoint ?? string.Empty,
+                UIStartingPoint = config?.UIStartingPoint ?? string.Empty,
+                OldPatchTarget = config?.OldPatchTarget ?? string.Empty,
+                GameVersionPoint = config?.GameVersionPoint ?? string.Empty,
+                MinimalManagerVersion = config?.MinimalManagerVersion ?? string.Empty,
+                HarmonyVersion = config?.HarmonyVersion ?? string.Empty
             };
         }
 
@@ -180,7 +192,19 @@ namespace BetterUMM.ViewModels
             }
 
             string baseDir = AppDomain.CurrentDomain.BaseDirectory;
-            string[] libs = Directory.GetFiles(Path.Combine(baseDir, "UnityModManager"));
+            string ummSourceDir = Path.Combine(baseDir, "UnityModManager");
+            if (!Directory.Exists(ummSourceDir))
+            {
+                System.Windows.MessageBox.Show($"UnityModManager 리소스 폴더를 찾을 수 없습니다: {ummSourceDir}");
+                return;
+            }
+
+            string[] libs = Directory.GetFiles(ummSourceDir, "*", SearchOption.AllDirectories);
+            if (libs.Length == 0)
+            {
+                System.Windows.MessageBox.Show("UnityModManager 라이브러리 파일을 찾을 수 없습니다.");
+                return;
+            }
 
             if (SelectedGame.CurrentPatchMethod == PatchMethod.Doorstop)
             {

@@ -14,7 +14,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <None Update="Resources\UnityModManager\**">
+    <None Include="Resources\UnityModManager\**">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
       <Link>UnityModManager\%(RecursiveDir)%(FileName)%(Extension)</Link>
     </None>
