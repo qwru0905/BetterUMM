@@ -51,19 +51,21 @@ namespace BetterUMM.ViewModels
 
         public string PatchStatusText => PatchStatus switch
         {
-            PatchStatus.Doorstop         => "설치됨 (Doorstop)",
+            PatchStatus.Doorstop          => "설치됨 (Doorstop)",
             PatchStatus.AssemblyInjection => "설치됨 (Assembly)",
             _                             => "미설치"
         };
 
         public bool IsUmmInstalled => PatchStatus != PatchStatus.NotInstalled;
-
         public string PatchButtonText => IsUmmInstalled ? "Uninstall UMM" : "Install UMM";
+
+        // 변경된 모드가 있는지 여부 (저장 버튼 활성화 조건)
+        public bool HasUnsavedChanges => Mods.Any(m => m.IsDirty);
 
         public ObservableCollection<GameInfo> Games { get; } = new();
         public ObservableCollection<ModInfo> Mods { get; } = new();
 
-        public IEnumerable<PatchMethod> AvailablePatchMethods => 
+        public IEnumerable<PatchMethod> AvailablePatchMethods =>
             Enum.GetValues(typeof(PatchMethod)).Cast<PatchMethod>().Where(m => m != PatchMethod.None);
 
         public PatchMethod TargetPatchMethod
@@ -82,18 +84,20 @@ namespace BetterUMM.ViewModels
         public ICommand PatchCommand { get; }
         public ICommand RefreshCommand { get; }
         public ICommand SelectGameCommand { get; }
+        public ICommand SaveModStatesCommand { get; }
+        public ICommand InstallModCommand { get; }
 
         public MainViewModel()
         {
             _configService.LoadConfig();
             foreach (var config in _configService.GetAllConfigs())
-            {
                 Games.Add(new GameInfo { Name = config.Name, Folder = config.Folder });
-            }
 
-            PatchCommand = new RelayCommand(_ => PatchSelectedGame());
-            RefreshCommand = new RelayCommand(_ => LoadMods());
-            SelectGameCommand = new RelayCommand(_ => SelectGame());
+            PatchCommand        = new RelayCommand(_ => PatchSelectedGame());
+            RefreshCommand      = new RelayCommand(_ => LoadMods());
+            SelectGameCommand   = new RelayCommand(_ => SelectGame());
+            SaveModStatesCommand = new RelayCommand(_ => SaveModStates(), _ => HasUnsavedChanges);
+            InstallModCommand   = new RelayCommand(_ => InstallMod());
         }
 
         private void SelectGame()
@@ -108,28 +112,30 @@ namespace BetterUMM.ViewModels
 
             string path = openFileDialog.FileName;
             string folderName = Path.GetFileName(Path.GetDirectoryName(path)) ?? "";
-
             var config = _configService.GetGameConfig(folderName);
+
             SelectedGame = new GameInfo
             {
                 Name = config?.Name ?? Path.GetFileNameWithoutExtension(path),
                 Path = path,
                 GameDataPath = Path.Combine(Path.GetDirectoryName(path)!, $"{Path.GetFileNameWithoutExtension(path)}_Data"),
-                AssemblyName = config != null ? (config.EntryPoint.Split('[', ']').Length > 2 ? config.EntryPoint.Split('[', ']')[1] : "Assembly-CSharp.dll") : "Assembly-CSharp.dll",
+                AssemblyName = config != null
+                    ? (config.EntryPoint.Split('[', ']').Length > 2 ? config.EntryPoint.Split('[', ']')[1] : "Assembly-CSharp.dll")
+                    : "Assembly-CSharp.dll",
                 PatchTarget = config?.EntryPoint ?? string.Empty,
                 CurrentPatchMethod = PatchMethod.Doorstop,
-                
-                Folder = config?.Folder ?? folderName,
-                ModsDirectory = config?.ModsDirectory ?? "Mods",
-                ModInfo = config?.ModInfo ?? "Info.json",
-                GameExe = config?.GameExe ?? Path.GetFileName(path),
-                EntryPoint = config?.EntryPoint ?? string.Empty,
-                StartingPoint = config?.StartingPoint ?? string.Empty,
-                UIStartingPoint = config?.UIStartingPoint ?? string.Empty,
-                OldPatchTarget = config?.OldPatchTarget ?? string.Empty,
-                GameVersionPoint = config?.GameVersionPoint ?? string.Empty,
+
+                Folder            = config?.Folder ?? folderName,
+                ModsDirectory     = config?.ModsDirectory ?? "Mods",
+                ModInfo           = config?.ModInfo ?? "Info.json",
+                GameExe           = config?.GameExe ?? System.IO.Path.GetFileName(path),
+                EntryPoint        = config?.EntryPoint ?? string.Empty,
+                StartingPoint     = config?.StartingPoint ?? string.Empty,
+                UIStartingPoint   = config?.UIStartingPoint ?? string.Empty,
+                OldPatchTarget    = config?.OldPatchTarget ?? string.Empty,
+                GameVersionPoint  = config?.GameVersionPoint ?? string.Empty,
                 MinimalManagerVersion = config?.MinimalManagerVersion ?? string.Empty,
-                HarmonyVersion = config?.HarmonyVersion ?? string.Empty
+                HarmonyVersion    = config?.HarmonyVersion ?? string.Empty
             };
         }
 
@@ -148,7 +154,7 @@ namespace BetterUMM.ViewModels
                     SelectedGame.CurrentPatchMethod = PatchMethod.Doorstop;
                 else if (PatchStatus == PatchStatus.AssemblyInjection)
                     SelectedGame.CurrentPatchMethod = PatchMethod.Assembly;
-                
+
                 OnPropertyChanged(nameof(TargetPatchMethod));
             }
             catch
@@ -160,13 +166,85 @@ namespace BetterUMM.ViewModels
         private void LoadMods()
         {
             if (SelectedGame == null || string.IsNullOrEmpty(SelectedGame.Path)) return;
-            
+
             Mods.Clear();
-            string modsPath = Path.Combine(Path.GetDirectoryName(SelectedGame.Path)!, "Mods");
+
+            // ModsDirectory를 GameInfo에서 읽어옴 (하드코딩 제거)
+            string gameDir = System.IO.Path.GetDirectoryName(SelectedGame.Path)!;
+            string modsPath = System.IO.Path.Combine(gameDir, SelectedGame.ModsDirectory);
+
             var mods = _modService.ScanMods(modsPath);
-            foreach (var mod in mods) 
+            foreach (var mod in mods)
             {
+                mod.MarkAsClean(); // 로드 시점을 기준으로 dirty 추적 시작
+                mod.PropertyChanged += OnModPropertyChanged;
                 Mods.Add(mod);
+            }
+
+            OnPropertyChanged(nameof(HasUnsavedChanges));
+        }
+
+        private void OnModPropertyChanged(object? sender, PropertyChangedEventArgs e)
+        {
+            if (e.PropertyName == nameof(ModInfo.IsDirty))
+            {
+                OnPropertyChanged(nameof(HasUnsavedChanges));
+                // CommandManager.RequerySuggested가 자동으로 CanExecute 재평가함
+            }
+        }
+
+        private void SaveModStates()
+        {
+            var dirtyMods = Mods.Where(m => m.IsDirty).ToList();
+            if (!dirtyMods.Any()) return;
+
+            try
+            {
+                _modService.SaveAllEnabledStates(dirtyMods);
+                foreach (var mod in dirtyMods)
+                    mod.MarkAsClean();
+
+                OnPropertyChanged(nameof(HasUnsavedChanges));
+                System.Windows.MessageBox.Show($"{dirtyMods.Count}개 모드 상태가 저장되었습니다.", "저장 완료",
+                    System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Information);
+            }
+            catch (Exception ex)
+            {
+                System.Windows.MessageBox.Show($"저장 실패: {ex.Message}", "오류",
+                    System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Error);
+            }
+        }
+
+        private void InstallMod()
+        {
+            if (SelectedGame == null || string.IsNullOrEmpty(SelectedGame.Path))
+            {
+                System.Windows.MessageBox.Show("게임을 먼저 선택하세요.");
+                return;
+            }
+
+            var openFileDialog = new Microsoft.Win32.OpenFileDialog
+            {
+                Filter = "Zip files (*.zip)|*.zip",
+                Title = "모드 zip 파일 선택"
+            };
+
+            if (openFileDialog.ShowDialog() != true) return;
+
+            string gameDir = System.IO.Path.GetDirectoryName(SelectedGame.Path)!;
+            string modsPath = System.IO.Path.Combine(gameDir, SelectedGame.ModsDirectory);
+
+            try
+            {
+                _modService.InstallMod(openFileDialog.FileName, modsPath);
+                LoadMods(); // 설치 후 목록 갱신
+                System.Windows.MessageBox.Show("모드가 설치되었습니다.", "설치 완료",
+                    System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Information);
+            }
+            catch (Exception ex)
+            {
+                System.Windows.MessageBox.Show($"설치 실패: {ex.Message}", "오류",
+                    System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Error);
             }
         }
 
@@ -177,14 +255,9 @@ namespace BetterUMM.ViewModels
             bool ok;
             if (IsUmmInstalled)
             {
-                if (PatchStatus == PatchStatus.Doorstop)
-                {
-                    ok = _patchService.RemoveDoorstop(SelectedGame);
-                }
-                else
-                {
-                    ok = _patchService.RemoveAssembly(SelectedGame);
-                }
+                ok = PatchStatus == PatchStatus.Doorstop
+                    ? _patchService.RemoveDoorstop(SelectedGame)
+                    : _patchService.RemoveAssembly(SelectedGame);
 
                 if (ok) RefreshPatchStatus();
                 System.Windows.MessageBox.Show(ok ? "제거 성공!" : "제거 실패. 로그를 확인하세요.");
@@ -192,7 +265,7 @@ namespace BetterUMM.ViewModels
             }
 
             string baseDir = AppDomain.CurrentDomain.BaseDirectory;
-            string ummSourceDir = Path.Combine(baseDir, "UnityModManager");
+            string ummSourceDir = System.IO.Path.Combine(baseDir, "UnityModManager");
             if (!Directory.Exists(ummSourceDir))
             {
                 System.Windows.MessageBox.Show($"UnityModManager 리소스 폴더를 찾을 수 없습니다: {ummSourceDir}");
@@ -210,8 +283,8 @@ namespace BetterUMM.ViewModels
             {
                 ok = _patchService.InstallDoorstop(
                     SelectedGame,
-                    Path.Combine(baseDir, "winhttp_x64.dll"),
-                    Path.Combine(baseDir, "winhttp_x86.dll"),
+                    System.IO.Path.Combine(baseDir, "winhttp_x64.dll"),
+                    System.IO.Path.Combine(baseDir, "winhttp_x86.dll"),
                     libs);
             }
             else
@@ -225,8 +298,6 @@ namespace BetterUMM.ViewModels
 
         public event PropertyChangedEventHandler? PropertyChanged;
         protected void OnPropertyChanged([CallerMemberName] string? name = null)
-        {
-            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(name));
-        }
+            => PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(name));
     }
 }

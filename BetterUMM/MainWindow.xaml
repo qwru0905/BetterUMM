@@ -15,6 +15,7 @@
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="*"/>
             <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
         </Grid.RowDefinitions>
 
         <!-- Header: Game Selection -->
@@ -45,9 +46,10 @@
             </Border>
             <StackPanel Orientation="Horizontal" Margin="0,10,0,0">
                 <Button Content="{Binding PatchButtonText}" Command="{Binding PatchCommand}" Padding="10,2" VerticalAlignment="Center"/>
-                <TextBlock Text="Patch Method:" VerticalAlignment="Center" Margin="20,0,10,0" FontWeight="Bold" Visibility="{Binding IsUmmInstalled, Converter={StaticResource BooleanToVisibilityConverter}, ConverterParameter=Inverse}"/>
-                <ComboBox ItemsSource="{Binding AvailablePatchMethods}" 
-                          SelectedItem="{Binding TargetPatchMethod}" 
+                <TextBlock Text="Patch Method:" VerticalAlignment="Center" Margin="20,0,10,0" FontWeight="Bold"
+                           Visibility="{Binding IsUmmInstalled, Converter={StaticResource BooleanToVisibilityConverter}, ConverterParameter=Inverse}"/>
+                <ComboBox ItemsSource="{Binding AvailablePatchMethods}"
+                          SelectedItem="{Binding TargetPatchMethod}"
                           Width="100" VerticalAlignment="Center"
                           IsEnabled="{Binding IsUmmInstalled, Converter={StaticResource InverseBooleanConverter}}"
                           Visibility="{Binding IsUmmInstalled, Converter={StaticResource BooleanToVisibilityConverter}, ConverterParameter=Inverse}"/>
@@ -58,16 +60,55 @@
         <GroupBox Header="Installed Mods" Grid.Row="1">
             <DataGrid ItemsSource="{Binding Mods}" AutoGenerateColumns="False" CanUserAddRows="False" SelectionMode="Single">
                 <DataGrid.Columns>
-                    <DataGridCheckBoxColumn Header="Enabled" Binding="{Binding IsEnabled, UpdateSourceTrigger=PropertyChanged}"/>
+                    <DataGridCheckBoxColumn Header="Enabled" Binding="{Binding IsEnabled, UpdateSourceTrigger=PropertyChanged}" Width="60"/>
                     <DataGridTextColumn Header="Name" Binding="{Binding DisplayName}" Width="*" IsReadOnly="True"/>
                     <DataGridTextColumn Header="Version" Binding="{Binding Version}" Width="100" IsReadOnly="True"/>
                     <DataGridTextColumn Header="Author" Binding="{Binding Author}" Width="150" IsReadOnly="True"/>
+                    <!-- 변경 여부 표시 -->
+                    <DataGridTemplateColumn Header="" Width="20">
+                        <DataGridTemplateColumn.CellTemplate>
+                            <DataTemplate>
+                                <Ellipse Width="8" Height="8" Fill="Orange" ToolTip="저장되지 않은 변경사항">
+                                    <Ellipse.Style>
+                                        <Style TargetType="Ellipse">
+                                            <Setter Property="Visibility" Value="Collapsed"/>
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding IsDirty}" Value="True">
+                                                    <Setter Property="Visibility" Value="Visible"/>
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </Ellipse.Style>
+                                </Ellipse>
+                            </DataTemplate>
+                        </DataGridTemplateColumn.CellTemplate>
+                    </DataGridTemplateColumn>
                 </DataGrid.Columns>
             </DataGrid>
         </GroupBox>
 
-        <!-- Footer: Profile Management (Simplified for now) -->
-        <StackPanel Orientation="Horizontal" Grid.Row="2" Margin="0,10,0,0">
+        <!-- Mod Action Buttons -->
+        <StackPanel Orientation="Horizontal" Grid.Row="2" Margin="0,5,0,0">
+            <Button Content="Install Mod" Command="{Binding InstallModCommand}" Padding="10,2" Margin="0,0,5,0"/>
+            <Button Content="Refresh" Command="{Binding RefreshCommand}" Padding="10,2" Margin="0,0,5,0"/>
+            <!-- 변경사항 있을 때만 강조 -->
+            <Button Command="{Binding SaveModStatesCommand}" Padding="10,2">
+                <Button.Style>
+                    <Style TargetType="Button">
+                        <Setter Property="Content" Value="Save"/>
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding HasUnsavedChanges}" Value="True">
+                                <Setter Property="Content" Value="Save"/>
+                                <Setter Property="FontWeight" Value="Bold"/>
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </Button.Style>
+            </Button>
+        </StackPanel>
+
+        <!-- Footer: Profile Management -->
+        <StackPanel Orientation="Horizontal" Grid.Row="3" Margin="0,10,0,0">
             <TextBlock Text="Profiles:" VerticalAlignment="Center" Margin="0,0,10,0" FontWeight="Bold"/>
             <ComboBox Width="150" Margin="0,0,10,0"/>
             <Button Content="Switch Profile" Margin="0,0,5,0" Padding="5,2"/>
