@@ -1,0 +1,35 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <UseWPF>true</UseWPF>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Mono.Cecil" Version="0.11.6" />
+    <PackageReference Include="Newtonsoft.Json" Version="13.0.4" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Update="Resources\UnityModManager\**">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <Link>UnityModManager\%(RecursiveDir)%(FileName)%(Extension)</Link>
+    </None>
+    <None Update="Resources\UnityModManagerConfig.xml">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <Link>UnityModManagerConfig.xml</Link>
+    </None>
+    <None Update="Resources\winhttp_x64.dll">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <Link>winhttp_x64.dll</Link>
+    </None>
+    <None Update="Resources\winhttp_x86.dll">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <Link>winhttp_x86.dll</Link>
+    </None>
+  </ItemGroup>
+
+</Project>
