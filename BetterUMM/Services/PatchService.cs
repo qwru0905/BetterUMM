@@ -129,7 +129,10 @@ namespace BetterUMM.Services
         public bool InstallAssembly(GameInfo game, string[] libraryPaths)
         {
             if (!TryParseEntryPoint(game, out var typeName, out var methodName, out var place))
+            {
+                LoggerService.Log($"Entry point not found in {game.Name}", LogLevel.Error);
                 return false;
+            }
 
             string managedPath = Path.Combine(game.GameDataPath, "Managed");
             string assemblyPath = Path.Combine(managedPath, game.AssemblyName);
@@ -153,7 +156,7 @@ namespace BetterUMM.Services
                 var entryMethod = FindMethod(assembly, typeName, methodName);
                 if (entryMethod == null)
                 {
-                    LoggerService.Log($"Entry point not found: {typeName}.{methodName}", "ERROR");
+                    LoggerService.Log($"Entry point not found: {typeName}.{methodName}", LogLevel.Error);
                     return false;
                 }
 

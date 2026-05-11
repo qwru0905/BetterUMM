@@ -17,6 +17,24 @@ namespace BetterUMM.ViewModels
         private readonly ModService _modService = new();
         private readonly PatchService _patchService = new();
         private readonly ProfileService _profileService = new();
+        private readonly AppSettingsService _appSettingsService = new();
+
+        public IEnumerable<LogLevel> AvailableLogLevels => Enum.GetValues(typeof(LogLevel)).Cast<LogLevel>().Where(l => l != LogLevel.None);
+
+        public LogLevel SelectedLogLevel
+        {
+            get => _appSettingsService.Settings.LogLevel;
+            set
+            {
+                if (_appSettingsService.Settings.LogLevel != value)
+                {
+                    _appSettingsService.Settings.LogLevel = value;
+                    _appSettingsService.SaveSettings();
+                    OnPropertyChanged();
+                    LoggerService.Info($"LogLevel changed by user to: {value}");
+                }
+            }
+        }
 
         private GameInfo? _selectedGame;
         public GameInfo? SelectedGame
@@ -114,6 +132,8 @@ namespace BetterUMM.ViewModels
             string folderName = Path.GetFileName(Path.GetDirectoryName(path)) ?? "";
             var config = _configService.GetGameConfig(folderName);
 
+            LoggerService.Info($"Game selected: {path}");
+
             SelectedGame = new GameInfo
             {
                 Name = config?.Name ?? Path.GetFileNameWithoutExtension(path),
@@ -150,6 +170,7 @@ namespace BetterUMM.ViewModels
             try
             {
                 PatchStatus = _patchService.GetPatchStatus(SelectedGame);
+                LoggerService.Debug($"Patch status refreshed for {SelectedGame.Name}: {PatchStatus}");
                 if (PatchStatus == PatchStatus.Doorstop)
                     SelectedGame.CurrentPatchMethod = PatchMethod.Doorstop;
                 else if (PatchStatus == PatchStatus.AssemblyInjection)
@@ -174,9 +195,12 @@ namespace BetterUMM.ViewModels
             string gameDir = System.IO.Path.GetDirectoryName(SelectedGame.Path)!;
             string modsPath = System.IO.Path.Combine(gameDir, SelectedGame.ModsDirectory);
 
+            LoggerService.Info($"Loading mods from: {modsPath}");
+
             try
             {
                 var mods = _modService.ScanMods(modsPath);
+                LoggerService.Info($"Scanned {mods.Count} mods.");
                 foreach (var mod in mods)
                 {
                     mod.MarkAsClean(); // 로드 시점을 기준으로 dirty 추적 시작
@@ -208,9 +232,13 @@ namespace BetterUMM.ViewModels
 
             try
             {
+                LoggerService.Info($"Saving enabled states for {dirtyMods.Count} mods.");
                 _modService.SaveAllEnabledStates(dirtyMods);
                 foreach (var mod in dirtyMods)
+                {
+                    LoggerService.Debug($"Mod '{mod.Id}' state saved: Enabled={mod.IsEnabled}");
                     mod.MarkAsClean();
+                }
 
                 OnPropertyChanged(nameof(HasUnsavedChanges));
                 System.Windows.MessageBox.Show($"{dirtyMods.Count}개 모드 상태가 저장되었습니다.", "저장 완료",
@@ -245,6 +273,7 @@ namespace BetterUMM.ViewModels
 
             try
             {
+                LoggerService.Info($"Installing mod from: {openFileDialog.FileName}");
                 _modService.InstallMod(openFileDialog.FileName, modsPath);
                 LoadMods(); // 설치 후 목록 갱신
                 System.Windows.MessageBox.Show("모드가 설치되었습니다.", "설치 완료",
@@ -265,6 +294,7 @@ namespace BetterUMM.ViewModels
             bool ok;
             if (IsUmmInstalled)
             {
+                LoggerService.Info($"Uninstalling UMM for {SelectedGame.Name} (Method: {PatchStatus})");
                 ok = PatchStatus == PatchStatus.Doorstop
                     ? _patchService.RemoveDoorstop(SelectedGame)
                     : _patchService.RemoveAssembly(SelectedGame);
@@ -278,6 +308,7 @@ namespace BetterUMM.ViewModels
             string ummSourceDir = System.IO.Path.Combine(baseDir, "UnityModManager");
             if (!Directory.Exists(ummSourceDir))
             {
+                LoggerService.Error($"UnityModManager resource folder not found: {ummSourceDir}");
                 System.Windows.MessageBox.Show($"UnityModManager 리소스 폴더를 찾을 수 없습니다: {ummSourceDir}");
                 return;
             }
@@ -285,10 +316,12 @@ namespace BetterUMM.ViewModels
             string[] libs = Directory.GetFiles(ummSourceDir, "*", SearchOption.AllDirectories);
             if (libs.Length == 0)
             {
+                LoggerService.Error("UnityModManager library files not found.");
                 System.Windows.MessageBox.Show("UnityModManager 라이브러리 파일을 찾을 수 없습니다.");
                 return;
             }
 
+            LoggerService.Info($"Installing UMM for {SelectedGame.Name} using {SelectedGame.CurrentPatchMethod}");
             if (SelectedGame.CurrentPatchMethod == PatchMethod.Doorstop)
             {
                 ok = _patchService.InstallDoorstop(

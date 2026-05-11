@@ -5,10 +5,21 @@ using System.Windows;
 
 namespace BetterUMM.Services
 {
+    public enum LogLevel
+    {
+        Debug = 0,
+        Info = 1,
+        Warning = 2,
+        Error = 3,
+        None = 4
+    }
+
     public static class LoggerService
     {
         private static readonly string LogFilePath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "logs", $"log_{DateTime.Now:yyyyMMdd}.txt");
         private static readonly object _lock = new object();
+
+        public static LogLevel MinimumLevel { get; set; } = LogLevel.Info;
 
         static LoggerService()
         {
@@ -26,9 +37,16 @@ namespace BetterUMM.Services
             }
         }
 
-        public static void Log(string message, string level = "INFO")
+        public static void Debug(string message) => Log(message, LogLevel.Debug);
+        public static void Info(string message) => Log(message, LogLevel.Info);
+        public static void Warning(string message) => Log(message, LogLevel.Warning);
+        public static void Error(string message) => Log(message, LogLevel.Error);
+
+        public static void Log(string message, LogLevel level = LogLevel.Info)
         {
-            var logEntry = $"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] [{level}] {message}";
+            if (level < MinimumLevel) return;
+
+            var logEntry = $"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] [{level.ToString().ToUpper()}] {message}";
             
             // Console output
             Console.WriteLine(logEntry);
@@ -57,7 +75,7 @@ namespace BetterUMM.Services
             }
             sb.AppendLine($"-----------------");
 
-            Log(sb.ToString(), "ERROR");
+            Log(sb.ToString(), LogLevel.Error);
         }
 
         private static void WriteToFile(string entry)
