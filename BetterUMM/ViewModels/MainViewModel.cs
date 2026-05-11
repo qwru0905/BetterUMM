@@ -69,9 +69,9 @@ namespace BetterUMM.ViewModels
 
         public string PatchStatusText => PatchStatus switch
         {
-            PatchStatus.Doorstop          => "설치됨 (Doorstop)",
-            PatchStatus.AssemblyInjection => "설치됨 (Assembly)",
-            _                             => "미설치"
+            PatchStatus.Doorstop          => "Installed (Doorstop)",
+            PatchStatus.AssemblyInjection => "Installed (Assembly)",
+            _                             => "Uninstalled"
         };
 
         public bool IsUmmInstalled => PatchStatus != PatchStatus.NotInstalled;
@@ -241,13 +241,13 @@ namespace BetterUMM.ViewModels
                 }
 
                 OnPropertyChanged(nameof(HasUnsavedChanges));
-                System.Windows.MessageBox.Show($"{dirtyMods.Count}개 모드 상태가 저장되었습니다.", "저장 완료",
+                System.Windows.MessageBox.Show($"Saved {dirtyMods.Count} mod status.", "Saved",
                     System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Information);
             }
             catch (Exception ex)
             {
                 LoggerService.LogException(ex, "SaveModStates");
-                System.Windows.MessageBox.Show($"저장 실패: {ex.Message}", "오류",
+                System.Windows.MessageBox.Show($"Save Failed: {ex.Message}", "Error",
                     System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Error);
             }
         }
@@ -256,14 +256,14 @@ namespace BetterUMM.ViewModels
         {
             if (SelectedGame == null || string.IsNullOrEmpty(SelectedGame.Path))
             {
-                System.Windows.MessageBox.Show("게임을 먼저 선택하세요.");
+                System.Windows.MessageBox.Show("Select game first.");
                 return;
             }
 
             var openFileDialog = new Microsoft.Win32.OpenFileDialog
             {
                 Filter = "Zip files (*.zip)|*.zip",
-                Title = "모드 zip 파일 선택"
+                Title = "select mod zip"
             };
 
             if (openFileDialog.ShowDialog() != true) return;
@@ -276,13 +276,13 @@ namespace BetterUMM.ViewModels
                 LoggerService.Info($"Installing mod from: {openFileDialog.FileName}");
                 _modService.InstallMod(openFileDialog.FileName, modsPath);
                 LoadMods(); // 설치 후 목록 갱신
-                System.Windows.MessageBox.Show("모드가 설치되었습니다.", "설치 완료",
+                System.Windows.MessageBox.Show("Mod was installed.", "Installed",
                     System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Information);
             }
             catch (Exception ex)
             {
                 LoggerService.LogException(ex, "InstallMod");
-                System.Windows.MessageBox.Show($"설치 실패: {ex.Message}", "오류",
+                System.Windows.MessageBox.Show($"Install Failed: {ex.Message}", "Error",
                     System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Error);
             }
         }
@@ -300,7 +300,7 @@ namespace BetterUMM.ViewModels
                     : _patchService.RemoveAssembly(SelectedGame);
 
                 if (ok) RefreshPatchStatus();
-                System.Windows.MessageBox.Show(ok ? "제거 성공!" : "제거 실패. 로그를 확인하세요.");
+                System.Windows.MessageBox.Show(ok ? "Delete Success" : "Delete Failed");
                 return;
             }
 
@@ -309,7 +309,7 @@ namespace BetterUMM.ViewModels
             if (!Directory.Exists(ummSourceDir))
             {
                 LoggerService.Error($"UnityModManager resource folder not found: {ummSourceDir}");
-                System.Windows.MessageBox.Show($"UnityModManager 리소스 폴더를 찾을 수 없습니다: {ummSourceDir}");
+                System.Windows.MessageBox.Show($"UnityModManager resource folder not found: {ummSourceDir}");
                 return;
             }
 
@@ -317,7 +317,7 @@ namespace BetterUMM.ViewModels
             if (libs.Length == 0)
             {
                 LoggerService.Error("UnityModManager library files not found.");
-                System.Windows.MessageBox.Show("UnityModManager 라이브러리 파일을 찾을 수 없습니다.");
+                System.Windows.MessageBox.Show("UnityModManager library files not found.");
                 return;
             }
 
@@ -336,7 +336,7 @@ namespace BetterUMM.ViewModels
             }
 
             if (ok) RefreshPatchStatus();
-            System.Windows.MessageBox.Show(ok ? "패치 성공!" : "패치 실패. 로그를 확인하세요.");
+            System.Windows.MessageBox.Show(ok ? "Patch Success" : "Patch Failed");
         }
 
         public event PropertyChangedEventHandler? PropertyChanged;
