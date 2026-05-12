@@ -134,8 +134,9 @@ namespace BetterUMM.Services
                 return false;
             }
 
+            string assemblyFileName = ExtractAssemblyFileName(game.PatchTarget, game.AssemblyName);
             string managedPath = Path.Combine(game.GameDataPath, "Managed");
-            string assemblyPath = Path.Combine(managedPath, game.AssemblyName);
+            string assemblyPath = Path.Combine(managedPath, assemblyFileName);
             string originalPath = assemblyPath + ".original_";
             string ummDir = Path.Combine(managedPath, UmmSubDir);
 
@@ -198,33 +199,46 @@ namespace BetterUMM.Services
             if (!TryParseEntryPoint(game, out var typeName, out var methodName, out _))
                 return false;
 
+            string assemblyFileName = ExtractAssemblyFileName(game.PatchTarget, game.AssemblyName);
             string managedPath = Path.Combine(game.GameDataPath, "Managed");
-            string assemblyPath = Path.Combine(managedPath, game.AssemblyName);
+            string assemblyPath = Path.Combine(managedPath, assemblyFileName);
+            string originalPath = assemblyPath + ".original_";
             string ummDir = Path.Combine(managedPath, UmmSubDir);
 
             try
             {
-                using var assembly = AssemblyDefinition.ReadAssembly(
-                    assemblyPath, new ReaderParameters { ReadWrite = true });
-
-                var injected = assembly.MainModule.Types.FirstOrDefault(t => t.Name == StarterTypeName);
-                if (injected == null) return true;
-
-                var entryMethod = FindMethod(assembly, typeName, methodName);
-                if (entryMethod != null)
+                // .original_ 백업이 있으면 원본 복원 (원본 UMM 방식)
+                if (File.Exists(originalPath))
                 {
-                    var il = entryMethod.Body.GetILProcessor();
-                    var callToRemove = entryMethod.Body.Instructions.FirstOrDefault(i =>
-                        i.OpCode == OpCodes.Call &&
-                        i.Operand is MethodReference mr &&
-                        mr.Name == "Start" &&
-                        mr.DeclaringType.Name == StarterTypeName);
-                    if (callToRemove != null)
-                        il.Remove(callToRemove);
+                    File.Copy(originalPath, assemblyPath, overwrite: true);
+                    File.Delete(originalPath);
+                    LoggerService.Log($"Restored original assembly from {originalPath}");
                 }
+                else
+                {
+                    // 백업 없으면 직접 어셈블리에서 Starter 제거
+                    using var assembly = AssemblyDefinition.ReadAssembly(
+                        assemblyPath, new ReaderParameters { ReadWrite = true });
 
-                assembly.MainModule.Types.Remove(injected);
-                assembly.Write();
+                    var injected = assembly.MainModule.Types.FirstOrDefault(t => t.Name == StarterTypeName);
+                    if (injected == null) return true;
+
+                    var entryMethod = FindMethod(assembly, typeName, methodName);
+                    if (entryMethod != null)
+                    {
+                        var il = entryMethod.Body.GetILProcessor();
+                        var callToRemove = entryMethod.Body.Instructions.FirstOrDefault(i =>
+                            i.OpCode == OpCodes.Call &&
+                            i.Operand is MethodReference mr &&
+                            mr.Name == "Start" &&
+                            mr.DeclaringType.Name == StarterTypeName);
+                        if (callToRemove != null)
+                            il.Remove(callToRemove);
+                    }
+
+                    assembly.MainModule.Types.Remove(injected);
+                    assembly.Write();
+                }
 
                 if (Directory.Exists(ummDir))
                     Directory.Delete(ummDir, true);
@@ -236,6 +250,18 @@ namespace BetterUMM.Services
                 LoggerService.LogException(ex, "RemoveAssembly");
                 return false;
             }
+        }
+
+        private string ExtractAssemblyFileName(string patchTarget, string defaultAssembly)
+        {
+            if (string.IsNullOrEmpty(patchTarget)) return defaultAssembly;
+            var openBracket = patchTarget.IndexOf('[');
+            var closeBracket = patchTarget.IndexOf(']');
+            if (openBracket >= 0 && closeBracket > openBracket)
+            {
+                return patchTarget.Substring(openBracket + 1, closeBracket - openBracket - 1);
+            }
+            return defaultAssembly;
         }
 
         // ── UnityModManagerStarter 타입 IL 빌드 ──────────────────────────
@@ -386,27 +412,48 @@ namespace BetterUMM.Services
         private bool TryParseEntryPoint(GameInfo game, out string typeName, out string methodName, out string place)
         {
             typeName = methodName = place = string.Empty;
-            if (string.IsNullOrEmpty(game.PatchTarget)) return false;
+            if (string.IsNullOrEmpty(game.PatchTarget))
+            {
+                LoggerService.Log($"TryParseEntryPoint: PatchTarget is null or empty for {game.Name}", LogLevel.Error);
+                return false;
+            }
 
-            var colonIdx = game.PatchTarget.LastIndexOf(':');
+            LoggerService.Log($"TryParseEntryPoint: Parsing PatchTarget for {game.Name}: {game.PatchTarget}");
+
+            string target = game.PatchTarget;
+            // assembly name in brackets: [Assembly.dll]Namespace.Class.Method:Before
+            var bracketIdx = target.LastIndexOf(']');
+            if (bracketIdx >= 0)
+            {
+                target = target[(bracketIdx + 1)..];
+                LoggerService.Log($"TryParseEntryPoint: Assembly part stripped, remaining: {target}");
+            }
+
+            var colonIdx = target.LastIndexOf(':');
             string fullMethod;
 
             if (colonIdx >= 0)
             {
-                place = game.PatchTarget[(colonIdx + 1)..].ToLower();
-                fullMethod = game.PatchTarget[..colonIdx];
+                place = target[(colonIdx + 1)..].ToLower();
+                fullMethod = target[..colonIdx];
             }
             else
             {
                 place = "after";
-                fullMethod = game.PatchTarget;
+                fullMethod = target;
             }
 
             var lastDot = fullMethod.LastIndexOf('.');
-            if (lastDot < 0) return false;
+            if (lastDot < 0)
+            {
+                LoggerService.Log($"TryParseEntryPoint: Failed to find last dot in {fullMethod}", LogLevel.Error);
+                return false;
+            }
 
             typeName = fullMethod[..lastDot];
             methodName = fullMethod[(lastDot + 1)..];
+
+            LoggerService.Log($"TryParseEntryPoint: Success - Type: {typeName}, Method: {methodName}, Place: {place}");
             return true;
         }
 

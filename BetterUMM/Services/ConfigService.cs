@@ -30,13 +30,22 @@ namespace BetterUMM.Services
             }
             catch (Exception ex)
             {
-                LoggerService.LogException(ex, "LoadConfig");
+                // Handle error (e.g., logging)
+                Console.WriteLine($"Error loading config: {ex.Message}");
             }
         }
 
         public GameConfig? GetGameConfig(string gameFolderName)
         {
             return _gameConfigs.Find(c => c.Folder.Equals(gameFolderName, StringComparison.OrdinalIgnoreCase));
+        }
+
+        /// <summary>
+        /// exe 파일 이름으로 매칭. 폴더명 매칭 실패 시 fallback으로 사용.
+        /// </summary>
+        public GameConfig? GetGameConfigByExe(string exeFileName)
+        {
+            return _gameConfigs.Find(c => c.GameExe.Equals(exeFileName, StringComparison.OrdinalIgnoreCase));
         }
 
         public List<GameConfig> GetAllConfigs() => _gameConfigs;
