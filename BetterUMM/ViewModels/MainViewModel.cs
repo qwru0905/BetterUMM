@@ -173,11 +173,11 @@ namespace BetterUMM.ViewModels
 
             Mods.Clear();
 
-            // ModsDirectory를 GameInfo에서 읽어옴 (하드코딩 제거)
             string gameDir = System.IO.Path.GetDirectoryName(SelectedGame.Path)!;
             string modsPath = System.IO.Path.Combine(gameDir, SelectedGame.ModsDirectory);
+            string paramsPath = ModService.GetParamsPath(SelectedGame.GameDataPath);
 
-            var mods = _modService.ScanMods(modsPath);
+            var mods = _modService.ScanMods(modsPath, paramsPath);
             foreach (var mod in mods)
             {
                 mod.MarkAsClean(); // 로드 시점을 기준으로 dirty 추적 시작
@@ -204,7 +204,8 @@ namespace BetterUMM.ViewModels
 
             try
             {
-                _modService.SaveAllEnabledStates(dirtyMods);
+                string paramsPath = ModService.GetParamsPath(SelectedGame!.GameDataPath);
+                _modService.SaveAllEnabledStates(dirtyMods, paramsPath);
                 foreach (var mod in dirtyMods)
                     mod.MarkAsClean();
 

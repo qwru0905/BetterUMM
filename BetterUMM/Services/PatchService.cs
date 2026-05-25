@@ -97,9 +97,21 @@ namespace BetterUMM.Services
 
         private void ExportConfig(GameInfo game, string destPath)
         {
-            var serializer = new XmlSerializer(typeof(GameInfo));
+            var config = new UmmConfig
+            {
+                Name = game.Name,
+                Folder = game.Folder,
+                ModsDirectory = game.ModsDirectory,
+                ModInfo = game.ModInfo,
+                GameExe = game.GameExe,
+                EntryPoint = game.EntryPoint,
+                StartingPoint = game.StartingPoint,
+                UIStartingPoint = game.UIStartingPoint,
+                MinimalManagerVersion = game.MinimalManagerVersion,
+            };
+            var serializer = new XmlSerializer(typeof(UmmConfig));
             using var writer = new StreamWriter(destPath);
-            serializer.Serialize(writer, game);
+            serializer.Serialize(writer, config);
         }
 
         public bool RemoveDoorstop(GameInfo game)
@@ -526,5 +538,28 @@ namespace BetterUMM.Services
         {
             if (File.Exists(path)) File.Delete(path);
         }
+    }
+
+    [XmlRoot("Config")]
+    public class UmmConfig
+    {
+        [XmlAttribute("Name")]
+        public string Name { get; set; } = string.Empty;
+        [XmlElement("Folder")]
+        public string Folder { get; set; } = string.Empty;
+        [XmlElement("ModsDirectory")]
+        public string ModsDirectory { get; set; } = "Mods";
+        [XmlElement("ModInfo")]
+        public string ModInfo { get; set; } = "Info.json";
+        [XmlElement("GameExe")]
+        public string GameExe { get; set; } = string.Empty;
+        [XmlElement("EntryPoint")]
+        public string EntryPoint { get; set; } = string.Empty;
+        [XmlElement("StartingPoint")]
+        public string StartingPoint { get; set; } = string.Empty;
+        [XmlElement("UIStartingPoint")]
+        public string UIStartingPoint { get; set; } = string.Empty;
+        [XmlElement("MinimalManagerVersion")]
+        public string MinimalManagerVersion { get; set; } = string.Empty;
     }
 }
