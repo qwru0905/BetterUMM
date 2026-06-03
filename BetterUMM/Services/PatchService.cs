@@ -471,6 +471,11 @@ namespace BetterUMM.Services
 
         private MethodDefinition? FindMethod(AssemblyDefinition assembly, string typeName, string methodName)
         {
+            // Cecil stores static constructors as ".cctor", but UMM config omits the leading dot.
+            string cecilName = methodName == "cctor" ? ".cctor"
+                             : methodName == "ctor"  ? ".ctor"
+                             : methodName;
+
             foreach (var module in assembly.Modules)
             {
                 var type = module.Types.FirstOrDefault(t => t.FullName == typeName)
@@ -479,7 +484,8 @@ namespace BetterUMM.Services
                               .FirstOrDefault(t => t.FullName == typeName || t.Name == typeName);
 
                 if (type != null)
-                    return type.Methods.FirstOrDefault(m => m.Name == methodName);
+                    return type.Methods.FirstOrDefault(m => m.Name == cecilName)
+                        ?? type.Methods.FirstOrDefault(m => m.Name == methodName);
             }
             return null;
         }
