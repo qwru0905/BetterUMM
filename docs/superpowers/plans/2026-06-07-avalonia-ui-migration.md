@@ -6,7 +6,7 @@
 
 **Architecture:** `MainViewModel`/`RelayCommand`/services are framework-agnostic BCL code and stay as-is except for two WPF-only touch points (`System.Windows.MessageBox`, `Microsoft.Win32.OpenFileDialog`, and `CommandManager.RequerySuggested`). The UI shell (`App`, `MainWindow`, XAML, converters) is rewritten for Avalonia. The `csproj` switches from `net8.0-windows`+`UseWPF` to plain `net8.0` with Avalonia package references.
 
-**Tech Stack:** .NET 8, Avalonia 12.0.4 (`Avalonia`, `Avalonia.Desktop`, `Avalonia.Themes.Fluent`, `Avalonia.Controls.DataGrid` 12.0.0), `MessageBox.Avalonia` 12.0.0 (namespace `MsBox.Avalonia`), existing `Mono.Cecil`/`Newtonsoft.Json`.
+**Tech Stack:** .NET 8, Avalonia 12.0.4 (`Avalonia`, `Avalonia.Desktop`, `Avalonia.Themes.Fluent`, `Avalonia.Fonts.Inter`, `Avalonia.Controls.DataGrid` 12.0.0), `MessageBox.Avalonia` 12.0.0 (namespace `MsBox.Avalonia`), existing `Mono.Cecil`/`Newtonsoft.Json`.
 
 ---
 
@@ -169,6 +169,7 @@ Replace the entire contents of `BetterUMM/BetterUMM.csproj` with:
     <PackageReference Include="Avalonia" Version="12.0.4" />
     <PackageReference Include="Avalonia.Desktop" Version="12.0.4" />
     <PackageReference Include="Avalonia.Themes.Fluent" Version="12.0.4" />
+    <PackageReference Include="Avalonia.Fonts.Inter" Version="12.0.4" />
     <PackageReference Include="Avalonia.Controls.DataGrid" Version="12.0.0" />
     <PackageReference Include="MessageBox.Avalonia" Version="12.0.0" />
     <PackageReference Include="Mono.Cecil" Version="0.11.6" />
@@ -411,7 +412,10 @@ Create `BetterUMM/MainWindow.axaml`:
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:vm="clr-namespace:BetterUMM.ViewModels"
+        xmlns:models="clr-namespace:BetterUMM.Models"
         mc:Ignorable="d"
+        x:DataType="vm:MainViewModel"
         Title="Better Unity Mod Manager" Height="600" Width="900" Background="#F0F0F0">
     <Window.Styles>
         <Style Selector="TextBlock.installed">
@@ -469,7 +473,7 @@ Create `BetterUMM/MainWindow.axaml`:
                         <!-- 변경 여부 표시 -->
                         <DataGridTemplateColumn Header="" Width="20">
                             <DataGridTemplateColumn.CellTemplate>
-                                <DataTemplate>
+                                <DataTemplate x:DataType="models:ModInfo">
                                     <Ellipse Width="8" Height="8" Fill="Orange" ToolTip.Tip="저장되지 않은 변경사항" IsVisible="{Binding IsDirty}"/>
                                 </DataTemplate>
                             </DataGridTemplateColumn.CellTemplate>
@@ -497,7 +501,8 @@ Create `BetterUMM/MainWindow.axaml`:
 
             <StackPanel Orientation="Horizontal" DockPanel.Dock="Right" HorizontalAlignment="Right">
                 <TextBlock Text="Log Level:" VerticalAlignment="Center" Margin="0,0,10,0" FontWeight="Bold"/>
-                <ComboBox ItemsSource="{Binding AvailableLogLevels}"
+                <ComboBox x:CompileBindings="False"
+                          ItemsSource="{Binding AvailableLogLevels}"
                           SelectedItem="{Binding SelectedLogLevel}"
                           Width="100" VerticalAlignment="Center"/>
             </StackPanel>
@@ -506,7 +511,9 @@ Create `BetterUMM/MainWindow.axaml`:
 </Window>
 ```
 
-Note: `AvailableLogLevels`/`SelectedLogLevel` and the Profiles combo box are bound to properties that don't exist on `MainViewModel` today — that's a pre-existing gap in the WPF version too (the bindings silently no-op). This plan preserves that behavior as-is; wiring them up is a separate feature, not part of this port.
+Note: `AvailableLogLevels`/`SelectedLogLevel` and the Profiles combo box are bound to properties that don't exist on `MainViewModel` today — that's a pre-existing gap in the WPF version too (the bindings silently no-op there because WPF resolves bindings via runtime reflection). Avalonia 12 defaults to **compiled bindings**, which would turn this into a compile-time `AVLN2000` error instead of a silent no-op. To preserve the existing behavior as-is (wiring them up is a separate feature, not part of this port), the Log Level `ComboBox` above sets `x:CompileBindings="False"` so it falls back to classic reflection-based bindings — matching the WPF no-op behavior exactly.
+
+Also note: Avalonia 12's compiled bindings require an explicit `x:DataType` directive wherever a `{Binding ...}` expression appears — there is no WPF equivalent requirement. The `<Window>` root above declares `x:DataType="vm:MainViewModel"` (via the new `xmlns:vm` namespace) so bindings against `MainViewModel` properties resolve at compile time, and the `DataGridTemplateColumn`'s `<DataTemplate>` declares `x:DataType="models:ModInfo"` (via the new `xmlns:models` namespace) since each `DataGrid` row's `DataContext` is a `ModInfo` from the `Mods` collection, not a `MainViewModel`.
 
 - [ ] **Step 3: Create `MainWindow.axaml.cs`**
 

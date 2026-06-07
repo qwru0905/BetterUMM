@@ -5,9 +5,14 @@ using System.ComponentModel;
 using System.IO;
 using System.Linq;
 using System.Runtime.CompilerServices;
+using System.Threading.Tasks;
 using System.Windows.Input;
+using Avalonia.Controls;
+using Avalonia.Platform.Storage;
 using BetterUMM.Models;
 using BetterUMM.Services;
+using MsBox.Avalonia;
+using MsBox.Avalonia.Enums;
 
 namespace BetterUMM.ViewModels
 {
@@ -17,6 +22,7 @@ namespace BetterUMM.ViewModels
         private readonly ModService _modService = new();
         private readonly PatchService _patchService = new();
         private readonly ProfileService _profileService = new();
+        private readonly Window _window;
         private readonly RelayCommand _saveModStatesCommand;
 
         private GameInfo? _selectedGame;
@@ -88,30 +94,37 @@ namespace BetterUMM.ViewModels
         public ICommand SaveModStatesCommand => _saveModStatesCommand;
         public ICommand InstallModCommand { get; }
 
-        public MainViewModel()
+        public MainViewModel(Window window)
         {
+            _window = window;
+
             _configService.LoadConfig();
             foreach (var config in _configService.GetAllConfigs())
                 Games.Add(new GameInfo { Name = config.Name, Folder = config.Folder });
 
-            PatchCommand        = new RelayCommand(_ => PatchSelectedGame());
-            RefreshCommand      = new RelayCommand(_ => LoadMods());
-            SelectGameCommand   = new RelayCommand(_ => SelectGame());
-            _saveModStatesCommand = new RelayCommand(_ => SaveModStates(), _ => HasUnsavedChanges);
-            InstallModCommand   = new RelayCommand(_ => InstallMod());
+            PatchCommand          = new RelayCommand(async _ => await PatchSelectedGameAsync());
+            RefreshCommand        = new RelayCommand(_ => LoadMods());
+            SelectGameCommand     = new RelayCommand(async _ => await SelectGameAsync());
+            _saveModStatesCommand = new RelayCommand(async _ => await SaveModStatesAsync(), _ => HasUnsavedChanges);
+            InstallModCommand     = new RelayCommand(async _ => await InstallModAsync());
         }
 
-        private void SelectGame()
+        private async Task SelectGameAsync()
         {
-            var openFileDialog = new Microsoft.Win32.OpenFileDialog
+            var files = await _window.StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions
             {
-                Filter = "Executable files (*.exe)|*.exe|All files (*.*)|*.*",
-                Title = "Select Game Executable"
-            };
+                Title = "Select Game Executable",
+                AllowMultiple = false,
+                FileTypeFilter = new[]
+                {
+                    new FilePickerFileType("Executable files") { Patterns = new[] { "*.exe" } },
+                    FilePickerFileTypes.All
+                }
+            });
 
-            if (openFileDialog.ShowDialog() != true) return;
+            if (files.Count == 0) return;
 
-            string path = openFileDialog.FileName;
+            string path = files[0].Path.LocalPath;
             string folderName = Path.GetFileName(Path.GetDirectoryName(path)) ?? "";
             string exeName = Path.GetFileName(path);
 
@@ -133,7 +146,7 @@ namespace BetterUMM.ViewModels
                 Folder            = config?.Folder ?? folderName,
                 ModsDirectory     = config?.ModsDirectory ?? "Mods",
                 ModInfo           = config?.ModInfo ?? "Info.json",
-                GameExe           = config?.GameExe ?? System.IO.Path.GetFileName(path),
+                GameExe           = config?.GameExe ?? Path.GetFileName(path),
                 EntryPoint        = config?.EntryPoint ?? string.Empty,
                 StartingPoint     = config?.StartingPoint ?? string.Empty,
                 UIStartingPoint   = config?.UIStartingPoint ?? string.Empty,
@@ -174,8 +187,8 @@ namespace BetterUMM.ViewModels
 
             Mods.Clear();
 
-            string gameDir = System.IO.Path.GetDirectoryName(SelectedGame.Path)!;
-            string modsPath = System.IO.Path.Combine(gameDir, SelectedGame.ModsDirectory);
+            string gameDir = Path.GetDirectoryName(SelectedGame.Path)!;
+            string modsPath = Path.Combine(gameDir, SelectedGame.ModsDirectory);
             string paramsPath = ModService.GetParamsPath(SelectedGame.GameDataPath);
 
             var mods = _modService.ScanMods(modsPath, paramsPath);
@@ -201,7 +214,7 @@ namespace BetterUMM.ViewModels
             _saveModStatesCommand.RaiseCanExecuteChanged();
         }
 
-        private void SaveModStates()
+        private async Task SaveModStatesAsync()
         {
             var dirtyMods = Mods.Where(m => m.IsDirty).ToList();
             if (!dirtyMods.Any()) return;
@@ -214,50 +227,47 @@ namespace BetterUMM.ViewModels
                     mod.MarkAsClean();
 
                 NotifyHasUnsavedChangesChanged();
-                System.Windows.MessageBox.Show($"{dirtyMods.Count}개 모드 상태가 저장되었습니다.", "저장 완료",
-                    System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Information);
+                await ShowMessageAsync($"{dirtyMods.Count}개 모드 상태가 저장되었습니다.", "저장 완료", Icon.Info);
             }
             catch (Exception ex)
             {
-                System.Windows.MessageBox.Show($"저장 실패: {ex.Message}", "오류",
-                    System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Error);
+                await ShowMessageAsync($"저장 실패: {ex.Message}", "오류", Icon.Error);
             }
         }
 
-        private void InstallMod()
+        private async Task InstallModAsync()
         {
             if (SelectedGame == null || string.IsNullOrEmpty(SelectedGame.Path))
             {
-                System.Windows.MessageBox.Show("게임을 먼저 선택하세요.");
+                await ShowMessageAsync("게임을 먼저 선택하세요.");
                 return;
             }
 
-            var openFileDialog = new Microsoft.Win32.OpenFileDialog
+            var files = await _window.StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions
             {
-                Filter = "Zip files (*.zip)|*.zip",
-                Title = "모드 zip 파일 선택"
-            };
+                Title = "모드 zip 파일 선택",
+                AllowMultiple = false,
+                FileTypeFilter = new[] { new FilePickerFileType("Zip files") { Patterns = new[] { "*.zip" } } }
+            });
 
-            if (openFileDialog.ShowDialog() != true) return;
+            if (files.Count == 0) return;
 
-            string gameDir = System.IO.Path.GetDirectoryName(SelectedGame.Path)!;
-            string modsPath = System.IO.Path.Combine(gameDir, SelectedGame.ModsDirectory);
+            string gameDir = Path.GetDirectoryName(SelectedGame.Path)!;
+            string modsPath = Path.Combine(gameDir, SelectedGame.ModsDirectory);
 
             try
             {
-                _modService.InstallMod(openFileDialog.FileName, modsPath);
+                _modService.InstallMod(files[0].Path.LocalPath, modsPath);
                 LoadMods(); // 설치 후 목록 갱신
-                System.Windows.MessageBox.Show("모드가 설치되었습니다.", "설치 완료",
-                    System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Information);
+                await ShowMessageAsync("모드가 설치되었습니다.", "설치 완료", Icon.Info);
             }
             catch (Exception ex)
             {
-                System.Windows.MessageBox.Show($"설치 실패: {ex.Message}", "오류",
-                    System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Error);
+                await ShowMessageAsync($"설치 실패: {ex.Message}", "오류", Icon.Error);
             }
         }
 
-        private void PatchSelectedGame()
+        private async Task PatchSelectedGameAsync()
         {
             if (SelectedGame == null || string.IsNullOrEmpty(SelectedGame.Path)) return;
 
@@ -269,22 +279,22 @@ namespace BetterUMM.ViewModels
                     : _patchService.RemoveAssembly(SelectedGame);
 
                 if (ok) RefreshPatchStatus();
-                System.Windows.MessageBox.Show(ok ? "제거 성공!" : "제거 실패. 로그를 확인하세요.");
+                await ShowMessageAsync(ok ? "제거 성공!" : "제거 실패. 로그를 확인하세요.");
                 return;
             }
 
             string baseDir = AppDomain.CurrentDomain.BaseDirectory;
-            string ummSourceDir = System.IO.Path.Combine(baseDir, "UnityModManager");
+            string ummSourceDir = Path.Combine(baseDir, "UnityModManager");
             if (!Directory.Exists(ummSourceDir))
             {
-                System.Windows.MessageBox.Show($"UnityModManager 리소스 폴더를 찾을 수 없습니다: {ummSourceDir}");
+                await ShowMessageAsync($"UnityModManager 리소스 폴더를 찾을 수 없습니다: {ummSourceDir}");
                 return;
             }
 
             string[] libs = Directory.GetFiles(ummSourceDir, "*", SearchOption.AllDirectories);
             if (libs.Length == 0)
             {
-                System.Windows.MessageBox.Show("UnityModManager 라이브러리 파일을 찾을 수 없습니다.");
+                await ShowMessageAsync("UnityModManager 라이브러리 파일을 찾을 수 없습니다.");
                 return;
             }
 
@@ -292,8 +302,8 @@ namespace BetterUMM.ViewModels
             {
                 ok = _patchService.InstallDoorstop(
                     SelectedGame,
-                    System.IO.Path.Combine(baseDir, "winhttp_x64.dll"),
-                    System.IO.Path.Combine(baseDir, "winhttp_x86.dll"),
+                    Path.Combine(baseDir, "winhttp_x64.dll"),
+                    Path.Combine(baseDir, "winhttp_x86.dll"),
                     libs);
             }
             else
@@ -302,7 +312,13 @@ namespace BetterUMM.ViewModels
             }
 
             if (ok) RefreshPatchStatus();
-            System.Windows.MessageBox.Show(ok ? "패치 성공!" : "패치 실패. 로그를 확인하세요.");
+            await ShowMessageAsync(ok ? "패치 성공!" : "패치 실패. 로그를 확인하세요.");
+        }
+
+        private static async Task ShowMessageAsync(string message, string title = "", Icon icon = Icon.None)
+        {
+            var box = MessageBoxManager.GetMessageBoxStandard(title, message, ButtonEnum.Ok, icon);
+            await box.ShowAsync();
         }
 
         public event PropertyChangedEventHandler? PropertyChanged;
