@@ -1,0 +1,81 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Library</OutputType>
+    <TargetFramework>netstandard2.1</TargetFramework>
+    <LangVersion>latest</LangVersion>
+
+    <AssemblyName>UnityModManager</AssemblyName>
+    <RootNamespace>UnityModManagerNet</RootNamespace>
+    <Copyright>Copyright © 2019-$([System.DateTime]::Now.ToString('yyyy'))</Copyright>
+    <Version>0.32.4</Version>
+  </PropertyGroup>
+
+  <PropertyGroup>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <OutputPath>$(SolutionDir)\UnityModManager\bin\$(Configuration)\</OutputPath>
+    <NeutralLanguage>en-001</NeutralLanguage>
+    <AssemblyVersion>0.32.4</AssemblyVersion>
+    <FileVersion>0.32.4</FileVersion>
+    <GeneratePackageOnBuild>True</GeneratePackageOnBuild>
+    <Title>UnityModManager</Title>
+    <Authors>newman55</Authors>
+    <Description>Mod manager for Unity games.</Description>
+    <PackageProjectUrl>https://www.nexusmods.com/site/mods/21</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/newman55/unity-mod-manager/</RepositoryUrl>
+    <PackageTags>unity3d mod manager</PackageTags>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <RepositoryType>git</RepositoryType>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="dnlib" Version="3.1.0" />
+    <PackageReference Include="Lib.Harmony" Version="2.3.6.0" />
+    <PackageReference Include="Microsoft.NETFramework.ReferenceAssemblies" Version="1.0.3">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+    </PackageReference>
+  </ItemGroup>
+
+  <ItemGroup>
+    <Reference Include="UnityEngine">
+      <HintPath>..\lib\UnityEngine.dll</HintPath>
+    </Reference>
+    <Reference Include="UnityEngine.CoreModule">
+      <HintPath>..\lib\UnityEngine.CoreModule.dll</HintPath>
+    </Reference>
+    <Reference Include="UnityEngine.IMGUIModule">
+      <HintPath>..\lib\UnityEngine.IMGUIModule.dll</HintPath>
+    </Reference>
+    <Reference Include="UnityEngine.TextRenderingModule">
+      <HintPath>..\lib\UnityEngine.TextRenderingModule.dll</HintPath>
+    </Reference>
+    <Reference Include="UnityEngine.UIModule">
+      <HintPath>..\lib\UnityEngine.UIModule.dll</HintPath>
+    </Reference>
+    <Reference Include="UnityEngine.UnityWebRequestModule">
+      <HintPath>..\lib\UnityEngine.UnityWebRequestModule.dll</HintPath>
+    </Reference>
+    <Reference Include="UnityEngine.UnityWebRequestWWWModule">
+      <HintPath>..\lib\UnityEngine.UnityWebRequestWWWModule.dll</HintPath>
+    </Reference>
+    <Reference Include="UnityEngine.InputLegacyModule">
+      <HintPath>..\lib\UnityEngine.InputLegacyModule.dll</HintPath>
+    </Reference>
+    <Reference Include="UnityEngine.UI">
+      <HintPath>..\lib\UnityEngine.UI.dll</HintPath>
+    </Reference>
+  </ItemGroup>
+
+  <Target Name="CopyToInstallerResources" AfterTargets="Build">
+    <PropertyGroup>
+      <InstallerResourcesDir>$(SolutionDir)BetterUMM\Resources\UnityModManager\</InstallerResourcesDir>
+    </PropertyGroup>
+    <MakeDir Directories="$(InstallerResourcesDir)" />
+    <Copy SourceFiles="$(TargetPath)" DestinationFolder="$(InstallerResourcesDir)" />
+    <Copy SourceFiles="$(TargetDir)$(AssemblyName).xml" DestinationFolder="$(InstallerResourcesDir)" Condition="Exists('$(TargetDir)$(AssemblyName).xml')" />
+  </Target>
+
+</Project>

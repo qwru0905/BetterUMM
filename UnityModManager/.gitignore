@@ -1,0 +1,10 @@
+# Build artifacts
+bin/
+obj/
+
+# Unity engine DLLs (provided by game at runtime, not tracked in repo)
+lib/UnityEngine*.dll
+lib/UnityEngine*.xml
+lib/UnityEditor*.dll
+lib/UnityEditor*.xml
+lib/Unity.Cecil*.dll
