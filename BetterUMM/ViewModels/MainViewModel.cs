@@ -17,6 +17,7 @@ namespace BetterUMM.ViewModels
         private readonly ModService _modService = new();
         private readonly PatchService _patchService = new();
         private readonly ProfileService _profileService = new();
+        private readonly RelayCommand _saveModStatesCommand;
 
         private GameInfo? _selectedGame;
         public GameInfo? SelectedGame
@@ -84,7 +85,7 @@ namespace BetterUMM.ViewModels
         public ICommand PatchCommand { get; }
         public ICommand RefreshCommand { get; }
         public ICommand SelectGameCommand { get; }
-        public ICommand SaveModStatesCommand { get; }
+        public ICommand SaveModStatesCommand => _saveModStatesCommand;
         public ICommand InstallModCommand { get; }
 
         public MainViewModel()
@@ -96,7 +97,7 @@ namespace BetterUMM.ViewModels
             PatchCommand        = new RelayCommand(_ => PatchSelectedGame());
             RefreshCommand      = new RelayCommand(_ => LoadMods());
             SelectGameCommand   = new RelayCommand(_ => SelectGame());
-            SaveModStatesCommand = new RelayCommand(_ => SaveModStates(), _ => HasUnsavedChanges);
+            _saveModStatesCommand = new RelayCommand(_ => SaveModStates(), _ => HasUnsavedChanges);
             InstallModCommand   = new RelayCommand(_ => InstallMod());
         }
 
@@ -185,16 +186,19 @@ namespace BetterUMM.ViewModels
                 Mods.Add(mod);
             }
 
-            OnPropertyChanged(nameof(HasUnsavedChanges));
+            NotifyHasUnsavedChangesChanged();
         }
 
         private void OnModPropertyChanged(object? sender, PropertyChangedEventArgs e)
         {
             if (e.PropertyName == nameof(ModInfo.IsDirty))
-            {
-                OnPropertyChanged(nameof(HasUnsavedChanges));
-                // CommandManager.RequerySuggested가 자동으로 CanExecute 재평가함
-            }
+                NotifyHasUnsavedChangesChanged();
+        }
+
+        private void NotifyHasUnsavedChangesChanged()
+        {
+            OnPropertyChanged(nameof(HasUnsavedChanges));
+            _saveModStatesCommand.RaiseCanExecuteChanged();
         }
 
         private void SaveModStates()
@@ -209,7 +213,7 @@ namespace BetterUMM.ViewModels
                 foreach (var mod in dirtyMods)
                     mod.MarkAsClean();
 
-                OnPropertyChanged(nameof(HasUnsavedChanges));
+                NotifyHasUnsavedChangesChanged();
                 System.Windows.MessageBox.Show($"{dirtyMods.Count}개 모드 상태가 저장되었습니다.", "저장 완료",
                     System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Information);
             }
