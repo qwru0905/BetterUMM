@@ -302,8 +302,8 @@ namespace BetterUMM.ViewModels
             {
                 ok = _patchService.InstallDoorstop(
                     SelectedGame,
-                    Path.Combine(baseDir, "winhttp_x64.dll"),
-                    Path.Combine(baseDir, "winhttp_x86.dll"),
+                    Path.Combine(baseDir, "Doorstop", "win", "x64", "winhttp.dll"),
+                    Path.Combine(baseDir, "Doorstop", "win", "x86", "winhttp.dll"),
                     libs);
             }
             else
