@@ -11,6 +11,8 @@ using Avalonia.Controls;
 using Avalonia.Platform.Storage;
 using BetterUMM.Models;
 using BetterUMM.Services;
+using BetterUMM.Services.Patching;
+using PatchStatus = BetterUMM.Services.Patching.PatchStatus;
 using MsBox.Avalonia;
 using MsBox.Avalonia.Enums;
 
@@ -20,7 +22,7 @@ namespace BetterUMM.ViewModels
     {
         private readonly ConfigService _configService = new();
         private readonly ModService _modService = new();
-        private readonly PatchService _patchService = new();
+        private readonly IPatchService _patchService = PatchServiceFactory.Create();
         private readonly ProfileService _profileService = new();
         private readonly Window _window;
         private readonly RelayCommand _saveModStatesCommand;
@@ -111,49 +113,65 @@ namespace BetterUMM.ViewModels
 
         private async Task SelectGameAsync()
         {
-            var files = await _window.StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions
+            string path;
+            string? appBundlePath = null;
+
+            if (OperatingSystem.IsMacOS())
             {
-                Title = "Select Game Executable",
-                AllowMultiple = false,
-                FileTypeFilter = new[]
+                var folders = await _window.StorageProvider.OpenFolderPickerAsync(new FolderPickerOpenOptions
                 {
-                    new FilePickerFileType("Executable files") { Patterns = new[] { "*.exe" } },
-                    FilePickerFileTypes.All
-                }
-            });
+                    Title = "Select Game .app Bundle",
+                    AllowMultiple = false
+                });
+                if (folders.Count == 0) return;
+                appBundlePath = folders[0].Path.LocalPath;
+                path = MacAppBundleHelper.ResolveExecutablePath(appBundlePath);
+            }
+            else
+            {
+                var fileTypeFilter = OperatingSystem.IsWindows()
+                    ? new[] { new FilePickerFileType("Executable files") { Patterns = new[] { "*.exe" } }, FilePickerFileTypes.All }
+                    : new[] { FilePickerFileTypes.All };
 
-            if (files.Count == 0) return;
+                var files = await _window.StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions
+                {
+                    Title = "Select Game Executable",
+                    AllowMultiple = false,
+                    FileTypeFilter = fileTypeFilter
+                });
+                if (files.Count == 0) return;
+                path = files[0].Path.LocalPath;
+            }
 
-            string path = files[0].Path.LocalPath;
-            string folderName = Path.GetFileName(Path.GetDirectoryName(path)) ?? "";
-            string exeName = Path.GetFileName(path);
+            string representativePath = appBundlePath ?? path;
+            string folderName = Path.GetFileName(Path.GetDirectoryName(representativePath)) ?? "";
+            string exeName = Path.GetFileName(representativePath);
 
-            // 1차: 폴더명 매칭, 실패 시 2차: exe 이름으로 매칭
-            var config = _configService.GetGameConfig(folderName)
-                      ?? _configService.GetGameConfigByExe(exeName);
+            var config = _configService.GetGameConfig(folderName) ?? _configService.GetGameConfigByExe(exeName);
+
+            string gameDataPath = appBundlePath != null
+                ? Path.Combine(appBundlePath, "Contents", "Resources", "Data")
+                : Path.Combine(Path.GetDirectoryName(path)!, $"{Path.GetFileNameWithoutExtension(path)}_Data");
 
             SelectedGame = new GameInfo
             {
-                Name = config?.Name ?? Path.GetFileNameWithoutExtension(path),
-                Path = path,
-                GameDataPath = Path.Combine(Path.GetDirectoryName(path)!, $"{Path.GetFileNameWithoutExtension(path)}_Data"),
-                AssemblyName = config != null
-                    ? (config.EntryPoint.Split('[', ']').Length > 2 ? config.EntryPoint.Split('[', ']')[1] : "Assembly-CSharp.dll")
-                    : "Assembly-CSharp.dll",
+                Name = config?.Name ?? Path.GetFileNameWithoutExtension(representativePath),
+                Path = appBundlePath ?? path,
+                GameDataPath = gameDataPath,
+                AssemblyName = config != null ? (config.EntryPoint.Split('[', ']').Length > 2 ? config.EntryPoint.Split('[', ']')[1] : "Assembly-CSharp.dll") : "Assembly-CSharp.dll",
                 PatchTarget = config?.EntryPoint ?? string.Empty,
                 CurrentPatchMethod = PatchMethod.Doorstop,
-
-                Folder            = config?.Folder ?? folderName,
-                ModsDirectory     = config?.ModsDirectory ?? "Mods",
-                ModInfo           = config?.ModInfo ?? "Info.json",
-                GameExe           = config?.GameExe ?? Path.GetFileName(path),
-                EntryPoint        = config?.EntryPoint ?? string.Empty,
-                StartingPoint     = config?.StartingPoint ?? string.Empty,
-                UIStartingPoint   = config?.UIStartingPoint ?? string.Empty,
-                OldPatchTarget    = config?.OldPatchTarget ?? string.Empty,
-                GameVersionPoint  = config?.GameVersionPoint ?? string.Empty,
+                Folder = config?.Folder ?? folderName,
+                ModsDirectory = config?.ModsDirectory ?? "Mods",
+                ModInfo = config?.ModInfo ?? "Info.json",
+                GameExe = config?.GameExe ?? exeName,
+                EntryPoint = config?.EntryPoint ?? string.Empty,
+                StartingPoint = config?.StartingPoint ?? string.Empty,
+                UIStartingPoint = config?.UIStartingPoint ?? string.Empty,
+                OldPatchTarget = config?.OldPatchTarget ?? string.Empty,
+                GameVersionPoint = config?.GameVersionPoint ?? string.Empty,
                 MinimalManagerVersion = config?.MinimalManagerVersion ?? string.Empty,
-                HarmonyVersion    = config?.HarmonyVersion ?? string.Empty
+                HarmonyVersion = config?.HarmonyVersion ?? string.Empty
             };
         }
 
@@ -300,11 +318,7 @@ namespace BetterUMM.ViewModels
 
             if (SelectedGame.CurrentPatchMethod == PatchMethod.Doorstop)
             {
-                ok = _patchService.InstallDoorstop(
-                    SelectedGame,
-                    Path.Combine(baseDir, "Doorstop", "win", "x64", "winhttp.dll"),
-                    Path.Combine(baseDir, "Doorstop", "win", "x86", "winhttp.dll"),
-                    libs);
+                ok = _patchService.InstallDoorstop(SelectedGame, libs);
             }
             else
             {
