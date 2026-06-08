@@ -3,16 +3,14 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Reflection;
-using System.Xml.Serialization;
 using BetterUMM.Models;
+using BetterUMM.Services;
 using Mono.Cecil;
 using Mono.Cecil.Cil;
 
-namespace BetterUMM.Services
+namespace BetterUMM.Services.Patching
 {
-    public enum PatchStatus { NotInstalled, AssemblyInjection, Doorstop }
-
-    public class PatchService
+    public class WindowsPatchService : IPatchService
     {
         private const string StarterTypeName = "UnityModManagerStarter";
         private const string StarterNamespace = "Injection";
@@ -20,8 +18,6 @@ namespace BetterUMM.Services
         private const string UmmDllName = "UnityModManager.dll";
         private const string DoorstopConfigFile = "doorstop_config.ini";
         private const string DoorstopDllFile = "winhttp.dll";
-
-        // ── 상태 확인 ────────────────────────────────────────────────────
 
         public PatchStatus GetPatchStatus(GameInfo game)
         {
@@ -42,12 +38,12 @@ namespace BetterUMM.Services
             return PatchStatus.NotInstalled;
         }
 
-        // ── Doorstop 방식 (Steam 무결성 검사 통과) ────────────────────────
-        // winhttp.dll 프록시가 게임 시작 시 target_assembly를 먼저 로드함.
-        // 기존 게임 파일을 수정하지 않으므로 Steam 무결성 검사에서 살아남음.
-
-        public bool InstallDoorstop(GameInfo game, string doorstopX64Path, string doorstopX86Path, string[] libraryPaths)
+        public bool InstallDoorstop(GameInfo game, string[] ummLibraryPaths)
         {
+            string doorstopBaseDir = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Doorstop", "win");
+            string doorstopX64Path = Path.Combine(doorstopBaseDir, "x64", "winhttp.dll");
+            string doorstopX86Path = Path.Combine(doorstopBaseDir, "x86", "winhttp.dll");
+
             string gameRoot = Path.GetDirectoryName(game.Path)!;
             string managedPath = Path.Combine(game.GameDataPath, "Managed");
             string ummDir = Path.Combine(managedPath, UmmSubDir);
@@ -64,54 +60,34 @@ namespace BetterUMM.Services
                 bool? is64 = IsExecutable64Bit(game.Path);
                 string srcDll = is64 == true ? doorstopX64Path : doorstopX86Path;
 
-                MakeBackup(doorstopPath, backups);
-                MakeBackup(configPath, backups);
-                MakeBackup(gameConfigPath, backups);
+                PatchFileOps.MakeBackup(doorstopPath, backups);
+                PatchFileOps.MakeBackup(configPath, backups);
+                PatchFileOps.MakeBackup(gameConfigPath, backups);
 
                 File.Copy(srcDll, doorstopPath, true);
 
-                // doorstop_config.ini 경로는 게임 실행파일 기준 상대경로
                 string dataFolderName = Path.GetFileName(game.GameDataPath);
                 string relTarget = Path.Combine(dataFolderName, "Managed", UmmSubDir, UmmDllName);
                 File.WriteAllText(configPath,
                     $"[General]{Environment.NewLine}enabled = true{Environment.NewLine}target_assembly = {relTarget}");
 
-                foreach (var lib in libraryPaths)
+                foreach (var lib in ummLibraryPaths)
                 {
                     string dest = Path.Combine(ummDir, Path.GetFileName(lib));
                     File.Copy(lib, dest, true);
                 }
 
-                ExportConfig(game, gameConfigPath);
+                PatchFileOps.ExportConfig(game, gameConfigPath);
 
-                DeleteBackups(backups);
+                PatchFileOps.DeleteBackups(backups);
                 return true;
             }
             catch (Exception ex)
             {
                 LoggerService.LogException(ex, "InstallDoorstop");
-                RestoreBackups(backups);
+                PatchFileOps.RestoreBackups(backups);
                 return false;
             }
-        }
-
-        private void ExportConfig(GameInfo game, string destPath)
-        {
-            var config = new UmmConfig
-            {
-                Name = game.Name,
-                Folder = game.Folder,
-                ModsDirectory = game.ModsDirectory,
-                ModInfo = game.ModInfo,
-                GameExe = game.GameExe,
-                EntryPoint = game.EntryPoint,
-                StartingPoint = game.StartingPoint,
-                UIStartingPoint = game.UIStartingPoint,
-                MinimalManagerVersion = game.MinimalManagerVersion,
-            };
-            var serializer = new XmlSerializer(typeof(UmmConfig));
-            using var writer = new StreamWriter(destPath);
-            serializer.Serialize(writer, config);
         }
 
         public bool RemoveDoorstop(GameInfo game)
@@ -121,8 +97,8 @@ namespace BetterUMM.Services
 
             try
             {
-                TryDelete(Path.Combine(gameRoot, DoorstopDllFile));
-                TryDelete(Path.Combine(gameRoot, DoorstopConfigFile));
+                PatchFileOps.TryDelete(Path.Combine(gameRoot, DoorstopDllFile));
+                PatchFileOps.TryDelete(Path.Combine(gameRoot, DoorstopConfigFile));
                 if (Directory.Exists(ummDir))
                     Directory.Delete(ummDir, true);
                 return true;
@@ -134,11 +110,7 @@ namespace BetterUMM.Services
             }
         }
 
-        // ── Assembly 주입 방식 ────────────────────────────────────────────
-        // UnityModManagerStarter 타입을 게임 어셈블리에 직접 embed하고
-        // entry point 메서드에 Call Start() 인스트럭션을 삽입함.
-
-        public bool InstallAssembly(GameInfo game, string[] libraryPaths)
+        public bool InstallAssembly(GameInfo game, string[] ummLibraryPaths)
         {
             if (!TryParseEntryPoint(game, out var typeName, out var methodName, out var place))
             {
@@ -156,7 +128,7 @@ namespace BetterUMM.Services
             try
             {
                 Directory.CreateDirectory(ummDir);
-                MakeBackup(assemblyPath, backups);
+                PatchFileOps.MakeBackup(assemblyPath, backups);
 
                 if (!File.Exists(originalPath))
                     File.Copy(assemblyPath, originalPath, false);
@@ -192,16 +164,16 @@ namespace BetterUMM.Services
 
                 assembly.Write();
 
-                foreach (var lib in libraryPaths)
+                foreach (var lib in ummLibraryPaths)
                     File.Copy(lib, Path.Combine(ummDir, Path.GetFileName(lib)), true);
 
-                DeleteBackups(backups);
+                PatchFileOps.DeleteBackups(backups);
                 return true;
             }
             catch (Exception ex)
             {
                 LoggerService.LogException(ex, "InstallAssembly");
-                RestoreBackups(backups);
+                PatchFileOps.RestoreBackups(backups);
                 return false;
             }
         }
@@ -219,7 +191,6 @@ namespace BetterUMM.Services
 
             try
             {
-                // .original_ 백업이 있으면 원본 복원 (원본 UMM 방식)
                 if (File.Exists(originalPath))
                 {
                     File.Copy(originalPath, assemblyPath, overwrite: true);
@@ -228,7 +199,6 @@ namespace BetterUMM.Services
                 }
                 else
                 {
-                    // 백업 없으면 직접 어셈블리에서 Starter 제거
                     using var assembly = AssemblyDefinition.ReadAssembly(
                         assemblyPath, new ReaderParameters { ReadWrite = true });
 
@@ -276,27 +246,6 @@ namespace BetterUMM.Services
             return defaultAssembly;
         }
 
-        // ── UnityModManagerStarter 타입 IL 빌드 ──────────────────────────
-        // 이 타입이 게임 어셈블리에 embed되어 게임 시작 시 UMM DLL을 로드함.
-        // 생성되는 C# 동치:
-        //
-        //   namespace Injection {
-        //     public static class UnityModManagerStarter {
-        //       public static void Start() {
-        //         string loc = Assembly.GetExecutingAssembly().Location;
-        //         string dir = Path.GetDirectoryName(loc);
-        //         string dll = Path.Combine(dir, "UnityModManager", "UnityModManager.dll");
-        //         if (!File.Exists(dll)) return;
-        //         Assembly asm = Assembly.LoadFile(dll);
-        //         Type t = asm.GetType("UnityModManagerNet.Injector");
-        //         if (t == null) return;
-        //         MethodInfo run = t.GetMethod("Run", BindingFlags.Public | BindingFlags.Static);
-        //         if (run == null) return;
-        //         run.Invoke(null, new object[] { false });
-        //       }
-        //     }
-        //   }
-
         private TypeDefinition BuildStarterType(ModuleDefinition module)
         {
             var type = new TypeDefinition(
@@ -311,7 +260,6 @@ namespace BetterUMM.Services
                 module.TypeSystem.Void);
             method.Body.InitLocals = true;
 
-            // locals: 0=location, 1=dir, 2=dllPath, 3=asm, 4=type, 5=methodInfo
             var strType = module.TypeSystem.String;
             var asmType = module.ImportReference(typeof(Assembly));
             var typeType = module.ImportReference(typeof(Type));
@@ -323,7 +271,6 @@ namespace BetterUMM.Services
             method.Body.Variables.Add(new VariableDefinition(typeType));
             method.Body.Variables.Add(new VariableDefinition(miType));
 
-            // 메서드 참조
             var refGetExecAsm = module.ImportReference(
                 typeof(Assembly).GetMethod("GetExecutingAssembly"));
             var refGetLocation = module.ImportReference(
@@ -350,62 +297,52 @@ namespace BetterUMM.Services
 
             var vars = method.Body.Variables;
 
-            // loc = Assembly.GetExecutingAssembly().Location
             il.Emit(OpCodes.Call, refGetExecAsm);
             il.Emit(OpCodes.Callvirt, refGetLocation);
             il.Emit(OpCodes.Stloc, vars[0]);
 
-            // dir = Path.GetDirectoryName(loc)
             il.Emit(OpCodes.Ldloc, vars[0]);
             il.Emit(OpCodes.Call, refGetDirName);
             il.Emit(OpCodes.Stloc, vars[1]);
 
-            // dllPath = Path.Combine(dir, "UnityModManager", "UnityModManager.dll")
             il.Emit(OpCodes.Ldloc, vars[1]);
             il.Emit(OpCodes.Ldstr, "UnityModManager");
             il.Emit(OpCodes.Ldstr, "UnityModManager.dll");
             il.Emit(OpCodes.Call, refCombine3);
             il.Emit(OpCodes.Stloc, vars[2]);
 
-            // if (!File.Exists(dllPath)) return
             il.Emit(OpCodes.Ldloc, vars[2]);
             il.Emit(OpCodes.Call, refFileExists);
             il.Emit(OpCodes.Brfalse, ret);
 
-            // asm = Assembly.LoadFile(dllPath)
             il.Emit(OpCodes.Ldloc, vars[2]);
             il.Emit(OpCodes.Call, refLoadFile);
             il.Emit(OpCodes.Stloc, vars[3]);
 
-            // type = asm.GetType("UnityModManagerNet.Injector")
             il.Emit(OpCodes.Ldloc, vars[3]);
             il.Emit(OpCodes.Ldstr, "UnityModManagerNet.Injector");
             il.Emit(OpCodes.Callvirt, refAsmGetType);
             il.Emit(OpCodes.Stloc, vars[4]);
 
-            // if (type == null) return
             il.Emit(OpCodes.Ldloc, vars[4]);
             il.Emit(OpCodes.Brfalse, ret);
 
-            // run = type.GetMethod("Run", BindingFlags.Public | BindingFlags.Static)
             il.Emit(OpCodes.Ldloc, vars[4]);
             il.Emit(OpCodes.Ldstr, "Run");
             il.Emit(OpCodes.Ldc_I4, (int)(BindingFlags.Public | BindingFlags.Static));
             il.Emit(OpCodes.Callvirt, refTypeGetMethod);
             il.Emit(OpCodes.Stloc, vars[5]);
 
-            // if (run == null) return
             il.Emit(OpCodes.Ldloc, vars[5]);
             il.Emit(OpCodes.Brfalse, ret);
 
-            // run.Invoke(null, new object[] { false })
             il.Emit(OpCodes.Ldloc, vars[5]);
             il.Emit(OpCodes.Ldnull);
             il.Emit(OpCodes.Ldc_I4_1);
             il.Emit(OpCodes.Newarr, refObjType);
             il.Emit(OpCodes.Dup);
             il.Emit(OpCodes.Ldc_I4_0);
-            il.Emit(OpCodes.Ldc_I4_0);  // false
+            il.Emit(OpCodes.Ldc_I4_0);
             il.Emit(OpCodes.Box, refBoolType);
             il.Emit(OpCodes.Stelem_Ref);
             il.Emit(OpCodes.Callvirt, refInvoke);
@@ -417,10 +354,6 @@ namespace BetterUMM.Services
             return type;
         }
 
-        // ── 내부 유틸리티 ─────────────────────────────────────────────────
-
-        // PatchTarget 형식: "Namespace.Class.Method:Before/After"
-        // 예) "App.Awake:After", "TH20.MainScript.Start:Before"
         private bool TryParseEntryPoint(GameInfo game, out string typeName, out string methodName, out string place)
         {
             typeName = methodName = place = string.Empty;
@@ -433,7 +366,6 @@ namespace BetterUMM.Services
             LoggerService.Log($"TryParseEntryPoint: Parsing PatchTarget for {game.Name}: {game.PatchTarget}");
 
             string target = game.PatchTarget;
-            // assembly name in brackets: [Assembly.dll]Namespace.Class.Method:Before
             var bracketIdx = target.LastIndexOf(']');
             if (bracketIdx >= 0)
             {
@@ -471,7 +403,6 @@ namespace BetterUMM.Services
 
         private MethodDefinition? FindMethod(AssemblyDefinition assembly, string typeName, string methodName)
         {
-            // Cecil stores static constructors as ".cctor", but UMM config omits the leading dot.
             string cecilName = methodName == "cctor" ? ".cctor"
                              : methodName == "ctor"  ? ".ctor"
                              : methodName;
@@ -499,19 +430,18 @@ namespace BetterUMM.Services
             }
         }
 
-        // PE 헤더에서 64-bit 여부 판별
         private static bool? IsExecutable64Bit(string filePath)
         {
             try
             {
                 using var stream = File.OpenRead(filePath);
                 using var reader = new BinaryReader(stream);
-                if (reader.ReadUInt16() != 0x5A4D) return null;        // MZ
+                if (reader.ReadUInt16() != 0x5A4D) return null;
                 stream.Seek(60, SeekOrigin.Begin);
-                stream.Seek(reader.ReadInt32(), SeekOrigin.Begin);      // e_lfanew
-                if (reader.ReadUInt32() != 0x00004550) return null;     // PE\0\0
+                stream.Seek(reader.ReadInt32(), SeekOrigin.Begin);
+                if (reader.ReadUInt32() != 0x00004550) return null;
                 var machine = reader.ReadUInt16();
-                return machine == 0x8664 || machine == 0x0200;          // AMD64 / IA64
+                return machine == 0x8664 || machine == 0x0200;
             }
             catch (Exception ex)
             {
@@ -519,53 +449,5 @@ namespace BetterUMM.Services
                 return null;
             }
         }
-
-        private static void MakeBackup(string path, List<string> tracked)
-        {
-            if (!File.Exists(path)) return;
-            File.Copy(path, path + ".bak", true);
-            tracked.Add(path);
-        }
-
-        private static void RestoreBackups(List<string> tracked)
-        {
-            foreach (var path in tracked)
-                if (File.Exists(path + ".bak"))
-                    File.Move(path + ".bak", path, true);
-        }
-
-        private static void DeleteBackups(List<string> tracked)
-        {
-            foreach (var path in tracked)
-                TryDelete(path + ".bak");
-        }
-
-        private static void TryDelete(string path)
-        {
-            if (File.Exists(path)) File.Delete(path);
-        }
-    }
-
-    [XmlRoot("Config")]
-    public class UmmConfig
-    {
-        [XmlAttribute("Name")]
-        public string Name { get; set; } = string.Empty;
-        [XmlElement("Folder")]
-        public string Folder { get; set; } = string.Empty;
-        [XmlElement("ModsDirectory")]
-        public string ModsDirectory { get; set; } = "Mods";
-        [XmlElement("ModInfo")]
-        public string ModInfo { get; set; } = "Info.json";
-        [XmlElement("GameExe")]
-        public string GameExe { get; set; } = string.Empty;
-        [XmlElement("EntryPoint")]
-        public string EntryPoint { get; set; } = string.Empty;
-        [XmlElement("StartingPoint")]
-        public string StartingPoint { get; set; } = string.Empty;
-        [XmlElement("UIStartingPoint")]
-        public string UIStartingPoint { get; set; } = string.Empty;
-        [XmlElement("MinimalManagerVersion")]
-        public string MinimalManagerVersion { get; set; } = string.Empty;
     }
 }

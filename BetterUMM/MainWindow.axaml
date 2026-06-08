@@ -1,0 +1,102 @@
+<Window x:Class="BetterUMM.MainWindow"
+        xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:vm="clr-namespace:BetterUMM.ViewModels"
+        xmlns:models="clr-namespace:BetterUMM.Models"
+        mc:Ignorable="d"
+        x:DataType="vm:MainViewModel"
+        Title="Better Unity Mod Manager" Height="600" Width="900" Background="#F0F0F0">
+    <Window.Styles>
+        <Style Selector="TextBlock.installed">
+            <Setter Property="Foreground" Value="Green"/>
+        </Style>
+        <Style Selector="Button.unsaved">
+            <Setter Property="FontWeight" Value="Bold"/>
+        </Style>
+    </Window.Styles>
+    <Grid Margin="10">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <!-- Header: Game Selection -->
+        <StackPanel Grid.Row="0" Margin="0,0,0,10">
+            <StackPanel Orientation="Horizontal" Margin="0,0,0,5">
+                <TextBlock Text="Select Game:" VerticalAlignment="Center" Margin="0,0,10,0" FontWeight="Bold"/>
+                <Button Content="Browse..." Command="{Binding SelectGameCommand}" Margin="0,0,10,0" Padding="10,2"/>
+                <TextBlock Text="{Binding SelectedGame.Name, TargetNullValue='No game selected'}" VerticalAlignment="Center" FontWeight="Bold" Foreground="Blue"/>
+            </StackPanel>
+            <Border BorderBrush="Gray" BorderThickness="1" Padding="5" Background="#E0E0E0">
+                <StackPanel Orientation="Horizontal">
+                    <TextBlock Text="Path: " FontWeight="Bold"/>
+                    <TextBlock Text="{Binding SelectedGame.Path, TargetNullValue='N/A'}"/>
+                    <TextBlock Text=" | UMM: " FontWeight="Bold" Margin="10,0,0,0"/>
+                    <TextBlock Text="{Binding PatchStatusText}" Foreground="Gray" Classes.installed="{Binding IsUmmInstalled}"/>
+                </StackPanel>
+            </Border>
+            <StackPanel Orientation="Horizontal" Margin="0,10,0,0">
+                <Button Content="{Binding PatchButtonText}" Command="{Binding PatchCommand}" Padding="10,2" VerticalAlignment="Center"/>
+                <TextBlock Text="Patch Method:" VerticalAlignment="Center" Margin="20,0,10,0" FontWeight="Bold"
+                           IsVisible="{Binding IsUmmInstalled, Converter={StaticResource InverseBooleanConverter}}"/>
+                <ComboBox ItemsSource="{Binding AvailablePatchMethods}"
+                          SelectedItem="{Binding TargetPatchMethod}"
+                          Width="100" VerticalAlignment="Center"
+                          IsEnabled="{Binding IsUmmInstalled, Converter={StaticResource InverseBooleanConverter}}"
+                          IsVisible="{Binding IsUmmInstalled, Converter={StaticResource InverseBooleanConverter}}"/>
+            </StackPanel>
+        </StackPanel>
+
+        <!-- Main Content: Mod List -->
+        <Border Grid.Row="1" BorderBrush="Gray" BorderThickness="1" CornerRadius="4">
+            <DockPanel>
+                <TextBlock Text="Installed Mods" FontWeight="Bold" Margin="8,6" DockPanel.Dock="Top"/>
+                <DataGrid ItemsSource="{Binding Mods}" AutoGenerateColumns="False" SelectionMode="Single">
+                    <DataGrid.Columns>
+                        <DataGridCheckBoxColumn Header="Enabled" Binding="{Binding IsEnabled, UpdateSourceTrigger=PropertyChanged}" Width="60"/>
+                        <DataGridTextColumn Header="Name" Binding="{Binding DisplayName}" Width="*" IsReadOnly="True"/>
+                        <DataGridTextColumn Header="Version" Binding="{Binding Version}" Width="100" IsReadOnly="True"/>
+                        <DataGridTextColumn Header="Author" Binding="{Binding Author}" Width="150" IsReadOnly="True"/>
+                        <!-- 변경 여부 표시 -->
+                        <DataGridTemplateColumn Header="" Width="20">
+                            <DataGridTemplateColumn.CellTemplate>
+                                <DataTemplate x:DataType="models:ModInfo">
+                                    <Ellipse Width="8" Height="8" Fill="Orange" ToolTip.Tip="저장되지 않은 변경사항" IsVisible="{Binding IsDirty}"/>
+                                </DataTemplate>
+                            </DataGridTemplateColumn.CellTemplate>
+                        </DataGridTemplateColumn>
+                    </DataGrid.Columns>
+                </DataGrid>
+            </DockPanel>
+        </Border>
+
+        <!-- Mod Action Buttons -->
+        <StackPanel Orientation="Horizontal" Grid.Row="2" Margin="0,5,0,0">
+            <Button Content="Install Mod" Command="{Binding InstallModCommand}" Padding="10,2" Margin="0,0,5,0"/>
+            <Button Content="Refresh" Command="{Binding RefreshCommand}" Padding="10,2" Margin="0,0,5,0"/>
+            <Button Content="Save" Command="{Binding SaveModStatesCommand}" Padding="10,2" Classes.unsaved="{Binding HasUnsavedChanges}"/>
+        </StackPanel>
+
+        <!-- Footer: Profile Management & Settings -->
+        <DockPanel Grid.Row="3" Margin="0,10,0,0">
+            <StackPanel Orientation="Horizontal" DockPanel.Dock="Left">
+                <TextBlock Text="Profiles:" VerticalAlignment="Center" Margin="0,0,10,0" FontWeight="Bold"/>
+                <ComboBox Width="150" Margin="0,0,10,0"/>
+                <Button Content="Switch Profile" Margin="0,0,5,0" Padding="5,2"/>
+                <Button Content="New Profile" Padding="5,2"/>
+            </StackPanel>
+
+            <StackPanel Orientation="Horizontal" DockPanel.Dock="Right" HorizontalAlignment="Right">
+                <TextBlock Text="Log Level:" VerticalAlignment="Center" Margin="0,0,10,0" FontWeight="Bold"/>
+                <ComboBox x:CompileBindings="False"
+                          ItemsSource="{Binding AvailableLogLevels}"
+                          SelectedItem="{Binding SelectedLogLevel}"
+                          Width="100" VerticalAlignment="Center"/>
+            </StackPanel>
+        </DockPanel>
+    </Grid>
+</Window>

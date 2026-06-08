@@ -93,3 +93,7 @@ BetterUMM/bin/
 BetterUMM/obj/
 
 .claude/
+
+# Doorstop 번들 리소스는 위 x64/x86 빌드 출력 무시 규칙에서 예외 처리
+!BetterUMM/Resources/Doorstop/
+!BetterUMM/Resources/Doorstop/**
