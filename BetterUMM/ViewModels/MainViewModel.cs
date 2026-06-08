@@ -12,6 +12,7 @@ using Avalonia.Platform.Storage;
 using BetterUMM.Models;
 using BetterUMM.Services;
 using BetterUMM.Services.Patching;
+// TODO: 레거시 PatchService.cs 삭제 시 이 별칭 제거 (PatchStatus 모호성 해소용 임시 조치)
 using PatchStatus = BetterUMM.Services.Patching.PatchStatus;
 using MsBox.Avalonia;
 using MsBox.Avalonia.Enums;
@@ -125,7 +126,16 @@ namespace BetterUMM.ViewModels
                 });
                 if (folders.Count == 0) return;
                 appBundlePath = folders[0].Path.LocalPath;
-                path = MacAppBundleHelper.ResolveExecutablePath(appBundlePath);
+
+                try
+                {
+                    path = MacAppBundleHelper.ResolveExecutablePath(appBundlePath);
+                }
+                catch (Exception ex)
+                {
+                    await ShowMessageAsync($"선택한 항목이 올바른 .app 번들이 아닙니다: {ex.Message}", "오류", Icon.Error);
+                    return;
+                }
             }
             else
             {
