@@ -27,13 +27,9 @@
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
       <Link>UnityModManagerConfig.xml</Link>
     </None>
-    <None Update="Resources\winhttp_x64.dll">
+    <None Include="Resources\Doorstop\**">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-      <Link>winhttp_x64.dll</Link>
-    </None>
-    <None Update="Resources\winhttp_x86.dll">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-      <Link>winhttp_x86.dll</Link>
+      <Link>Doorstop\%(RecursiveDir)%(FileName)%(Extension)</Link>
     </None>
   </ItemGroup>
 
