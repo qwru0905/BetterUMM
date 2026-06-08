@@ -207,13 +207,19 @@ namespace BetterUMM.ViewModels
             }
         }
 
+        // macOS에서는 GameInfo.Path가 .app 번들 디렉터리 자체를 가리키므로
+        // 실행 파일 기준 GetDirectoryName을 적용하면 한 단계 위 폴더가 된다.
+        // UnixDoorstopPatchService.ResolvePaths와 동일한 기준으로 루트 디렉터리를 계산한다.
+        private static string GetGameRootDirectory(GameInfo game) =>
+            OperatingSystem.IsMacOS() ? game.Path : Path.GetDirectoryName(game.Path)!;
+
         private void LoadMods()
         {
             if (SelectedGame == null || string.IsNullOrEmpty(SelectedGame.Path)) return;
 
             Mods.Clear();
 
-            string gameDir = Path.GetDirectoryName(SelectedGame.Path)!;
+            string gameDir = GetGameRootDirectory(SelectedGame);
             string modsPath = Path.Combine(gameDir, SelectedGame.ModsDirectory);
             string paramsPath = ModService.GetParamsPath(SelectedGame.GameDataPath);
 
@@ -278,7 +284,7 @@ namespace BetterUMM.ViewModels
 
             if (files.Count == 0) return;
 
-            string gameDir = Path.GetDirectoryName(SelectedGame.Path)!;
+            string gameDir = GetGameRootDirectory(SelectedGame);
             string modsPath = Path.Combine(gameDir, SelectedGame.ModsDirectory);
 
             try

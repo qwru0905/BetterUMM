@@ -1,5 +1,6 @@
 using System;
 using System.IO;
+using System.Runtime.Versioning;
 using BetterUMM.Models;
 using BetterUMM.Services;
 
@@ -28,6 +29,7 @@ namespace BetterUMM.Services.Patching
             return hasLib && hasWrapper ? PatchStatus.Doorstop : PatchStatus.NotInstalled;
         }
 
+        [UnsupportedOSPlatform("windows")]
         public bool InstallDoorstop(GameInfo game, string[] ummLibraryPaths)
         {
             var (executablePath, targetDir) = ResolvePaths(game);
