@@ -160,6 +160,8 @@ namespace UnityModManagerNet
 
             AppDomain.CurrentDomain.AssemblyResolve += CurrentDomain_AssemblyResolve;
 
+            Application.logMessageReceived += HarmonyDiagnostics.OnLogMessageReceived;
+
             return true;
         }
 

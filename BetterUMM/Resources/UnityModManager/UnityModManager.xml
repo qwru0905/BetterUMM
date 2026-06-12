@@ -9,6 +9,23 @@
             [0.21.3]
             </summary>
         </member>
+        <member name="T:UnityModManagerNet.UnityModManager.HarmonyDiagnostics">
+            <summary>
+            Resolves which mods patched a given method via Harmony, for diagnostic logging.
+            All public entry points swallow exceptions so diagnostics never break normal logging.
+            </summary>
+        </member>
+        <member name="M:UnityModManagerNet.UnityModManager.HarmonyDiagnostics.OnLogMessageReceived(System.String,System.String,UnityEngine.LogType)">
+            <summary>
+            Called from Application.logMessageReceived. Only LogType.Exception is handled.
+            </summary>
+        </member>
+        <member name="M:UnityModManagerNet.UnityModManager.HarmonyDiagnostics.DescribePatches(System.Reflection.MethodBase)">
+            <summary>
+            Returns a human-readable description of Harmony patches related to <paramref name="method"/>,
+            or an empty string if none are found or an error occurs.
+            </summary>
+        </member>
         <member name="M:UnityModManagerNet.UnityModManager.ModEntry.ModLogger.LogException(System.String,System.Exception)">
             <summary>
             [0.17.0]
