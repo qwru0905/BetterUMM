@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using UnityEngine;
@@ -134,6 +135,18 @@ namespace UnityModManagerNet
                 else
                     Write($"{prefix}{key}: {e.GetType().Name} - {e.Message}");
                 Console.WriteLine(e.ToString());
+
+                try
+                {
+                    var frame = new StackTrace(e, false).GetFrame(0)?.GetMethod();
+                    var info = HarmonyDiagnostics.DescribePatches(frame);
+                    if (!string.IsNullOrEmpty(info))
+                        Write($"{prefix}  ↳ {info}");
+                }
+                catch
+                {
+                    // Diagnostics must never break the original log output.
+                }
             }
             
             private static bool hasErrors;
