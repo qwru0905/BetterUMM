@@ -31,6 +31,7 @@
                 <Button Content="Browse..." Command="{Binding SelectGameCommand}" Margin="0,0,10,0" Padding="10,2"/>
                 <TextBlock Text="{Binding SelectedGame.Name, TargetNullValue='No game selected'}" VerticalAlignment="Center" FontWeight="Bold" Foreground="Blue"/>
             </StackPanel>
+
             <Border BorderBrush="Gray" BorderThickness="1" Padding="5" Background="#E0E0E0">
                 <StackPanel Orientation="Horizontal">
                     <TextBlock Text="Path: " FontWeight="Bold"/>
@@ -39,6 +40,7 @@
                     <TextBlock Text="{Binding PatchStatusText}" Foreground="Gray" Classes.installed="{Binding IsUmmInstalled}"/>
                 </StackPanel>
             </Border>
+
             <StackPanel Orientation="Horizontal" Margin="0,10,0,0">
                 <Button Content="{Binding PatchButtonText}" Command="{Binding PatchCommand}" Padding="10,2" VerticalAlignment="Center"/>
                 <TextBlock Text="Patch Method:" VerticalAlignment="Center" Margin="20,0,10,0" FontWeight="Bold"
@@ -53,25 +55,83 @@
 
         <!-- Main Content: Mod List -->
         <Border Grid.Row="1" BorderBrush="Gray" BorderThickness="1" CornerRadius="4">
-            <DockPanel>
-                <TextBlock Text="Installed Mods" FontWeight="Bold" Margin="8,6" DockPanel.Dock="Top"/>
-                <DataGrid ItemsSource="{Binding Mods}" AutoGenerateColumns="False" SelectionMode="Single">
-                    <DataGrid.Columns>
-                        <DataGridCheckBoxColumn Header="Enabled" Binding="{Binding IsEnabled, UpdateSourceTrigger=PropertyChanged}" Width="60"/>
-                        <DataGridTextColumn Header="Name" Binding="{Binding DisplayName}" Width="*" IsReadOnly="True"/>
-                        <DataGridTextColumn Header="Version" Binding="{Binding Version}" Width="100" IsReadOnly="True"/>
-                        <DataGridTextColumn Header="Author" Binding="{Binding Author}" Width="150" IsReadOnly="True"/>
-                        <!-- 변경 여부 표시 -->
-                        <DataGridTemplateColumn Header="" Width="20">
-                            <DataGridTemplateColumn.CellTemplate>
-                                <DataTemplate x:DataType="models:ModInfo">
-                                    <Ellipse Width="8" Height="8" Fill="Orange" ToolTip.Tip="저장되지 않은 변경사항" IsVisible="{Binding IsDirty}"/>
-                                </DataTemplate>
-                            </DataGridTemplateColumn.CellTemplate>
-                        </DataGridTemplateColumn>
-                    </DataGrid.Columns>
-                </DataGrid>
-            </DockPanel>
+            <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="*"/>
+                </Grid.RowDefinitions>
+
+                <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="8,6">
+                    <TextBlock Text="Installed Mods" FontWeight="Bold"/>
+                    <TextBlock Foreground="Gray" Margin="4,0,0,0">
+                        <TextBlock.Text>
+                            <MultiBinding StringFormat="{}{0}">
+                                <Binding Path="Mods.Count"/>
+                            </MultiBinding>
+                        </TextBlock.Text>
+                    </TextBlock>
+                </StackPanel>
+
+                <!-- 열 헤더 -->
+                <Grid Grid.Row="1">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                    </Grid.RowDefinitions>
+
+                    <Border Grid.Row="0" Background="#D8D8D8" BorderBrush="#B0B0B0" BorderThickness="0,0,0,1">
+                        <Grid Margin="4,4">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="60"/>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="100"/>
+                                <ColumnDefinition Width="150"/>
+                                <ColumnDefinition Width="20"/>
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Grid.Column="0" Text="Enabled" FontWeight="SemiBold" HorizontalAlignment="Center"/>
+                            <TextBlock Grid.Column="1" Text="Name" FontWeight="SemiBold" Margin="4,0"/>
+                            <TextBlock Grid.Column="2" Text="Version" FontWeight="SemiBold" Margin="4,0"/>
+                            <TextBlock Grid.Column="3" Text="Author" FontWeight="SemiBold" Margin="4,0"/>
+                        </Grid>
+                    </Border>
+
+                    <ListBox Grid.Row="1" ItemsSource="{Binding Mods}" Background="Transparent">
+                        <ListBox.ItemContainerTheme>
+                            <ControlTheme TargetType="ListBoxItem" x:DataType="models:ModInfo">
+                                <Setter Property="Padding" Value="0"/>
+                                <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
+                            </ControlTheme>
+                        </ListBox.ItemContainerTheme>
+                        <ListBox.ItemTemplate>
+                            <DataTemplate x:DataType="models:ModInfo">
+                                <Border BorderBrush="#E0E0E0" BorderThickness="0,0,0,1" Padding="4,4">
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="60"/>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="100"/>
+                                            <ColumnDefinition Width="150"/>
+                                            <ColumnDefinition Width="20"/>
+                                        </Grid.ColumnDefinitions>
+                                        <CheckBox Grid.Column="0" IsChecked="{Binding IsEnabled}"
+                                                  HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                        <TextBlock Grid.Column="1" Text="{Binding DisplayName}"
+                                                   VerticalAlignment="Center" Margin="4,0" TextTrimming="CharacterEllipsis"/>
+                                        <TextBlock Grid.Column="2" Text="{Binding Version}"
+                                                   VerticalAlignment="Center" Margin="4,0"/>
+                                        <TextBlock Grid.Column="3" Text="{Binding Author}"
+                                                   VerticalAlignment="Center" Margin="4,0" TextTrimming="CharacterEllipsis"/>
+                                        <Ellipse Grid.Column="4" Width="8" Height="8" Fill="Orange"
+                                                 ToolTip.Tip="Unsaved changes"
+                                                 IsVisible="{Binding IsDirty}"
+                                                 VerticalAlignment="Center" HorizontalAlignment="Center"/>
+                                    </Grid>
+                                </Border>
+                            </DataTemplate>
+                        </ListBox.ItemTemplate>
+                    </ListBox>
+                </Grid>
+            </Grid>
         </Border>
 
         <!-- Mod Action Buttons -->
