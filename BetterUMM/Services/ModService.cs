@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.IO;
 using System.IO.Compression;
 using System.Linq;
@@ -11,10 +12,8 @@ namespace BetterUMM.Services
 {
     public class ModService
     {
-        private const string UmmParamsRelPath = @"Managed\UnityModManager\Params.xml";
-
         public static string GetParamsPath(string gameDataPath)
-            => Path.Combine(gameDataPath, UmmParamsRelPath);
+            => Path.Combine(gameDataPath, "Managed", "UnityModManager", "Params.xml");
 
         public List<ModInfo> ScanMods(string modsFolderPath, string paramsXmlPath)
         {
@@ -139,6 +138,83 @@ namespace BetterUMM.Services
         {
             if (Directory.Exists(mod.FolderPath))
                 Directory.Delete(mod.FolderPath, true);
+        }
+
+        // On Linux/macOS, UMM may fail to render text if the configured font doesn't exist
+        // on the OS. This method checks the UIFont entry in Params.xml and replaces it with
+        // a font that is actually available on the current system.
+        public void EnsureFontConfigured(string paramsXmlPath)
+        {
+            if (OperatingSystem.IsWindows()) return;
+            if (!File.Exists(paramsXmlPath)) return;
+
+            try
+            {
+                var availableFonts = GetAvailableOsFonts();
+                if (availableFonts.Count == 0) return;
+
+                var doc = XDocument.Load(paramsXmlPath);
+                var root = doc.Root;
+                if (root == null) return;
+
+                var uiFontEl = root.Element("UIFont");
+                string currentFont = uiFontEl?.Value ?? string.Empty;
+
+                if (!string.IsNullOrEmpty(currentFont) &&
+                    availableFonts.Any(f => string.Equals(f, currentFont, StringComparison.OrdinalIgnoreCase)))
+                    return;
+
+                string[] preferred = { "Liberation Sans", "DejaVu Sans", "Arial", "FreeSans", "Ubuntu" };
+                string newFont = preferred.FirstOrDefault(p =>
+                    availableFonts.Any(f => string.Equals(f, p, StringComparison.OrdinalIgnoreCase)))
+                    ?? availableFonts[0];
+
+                if (uiFontEl != null)
+                    uiFontEl.Value = newFont;
+                else
+                    root.Add(new XElement("UIFont", newFont));
+
+                doc.Save(paramsXmlPath);
+                LoggerService.Info($"UIFont set to '{newFont}' (was '{currentFont}')");
+            }
+            catch (Exception ex)
+            {
+                LoggerService.LogException(ex, "EnsureFontConfigured");
+            }
+        }
+
+        private static List<string> GetAvailableOsFonts()
+        {
+            var fonts = new List<string>();
+            try
+            {
+                var psi = new ProcessStartInfo("fc-list", ": family")
+                {
+                    RedirectStandardOutput = true,
+                    UseShellExecute = false,
+                    CreateNoWindow = true
+                };
+                using var proc = Process.Start(psi);
+                if (proc == null) return fonts;
+                string output = proc.StandardOutput.ReadToEnd();
+                proc.WaitForExit();
+
+                foreach (var line in output.Split('\n', StringSplitOptions.RemoveEmptyEntries))
+                {
+                    // fc-list outputs comma-separated family names per line
+                    foreach (var name in line.Split(','))
+                    {
+                        string trimmed = name.Trim();
+                        if (!string.IsNullOrEmpty(trimmed))
+                            fonts.Add(trimmed);
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                LoggerService.LogException(ex, "GetAvailableOsFonts");
+            }
+            return fonts;
         }
     }
 }

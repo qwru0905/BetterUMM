@@ -1,0 +1,10 @@
+# Default: normalize line endings to LF in the repo
+* text=auto
+
+# Shell scripts must always use LF (CRLF breaks execution on Linux/macOS)
+*.sh text eol=lf
+
+# Windows-only scripts can use CRLF
+*.bat text eol=crlf
+*.cmd text eol=crlf
+*.ps1 text eol=crlf

@@ -59,14 +59,15 @@ namespace BetterUMM.ViewModels
 
         public string PatchStatusText => PatchStatus switch
         {
-            PatchStatus.Doorstop          => "Installed (Doorstop)",
-            PatchStatus.AssemblyInjection => "Installed (Assembly)",
-            _                             => "Not Installed"
+            PatchStatus.Doorstop          => "설치됨 (Doorstop)",
+            PatchStatus.AssemblyInjection => "설치됨 (Assembly)",
+            _                             => "미설치"
         };
 
         public bool IsUmmInstalled => PatchStatus != PatchStatus.NotInstalled;
         public string PatchButtonText => IsUmmInstalled ? "Uninstall UMM" : "Install UMM";
 
+        // 변경된 모드가 있는지 여부 (저장 버튼 활성화 조건)
         public bool HasUnsavedChanges => Mods.Any(m => m.IsDirty);
 
         public ObservableCollection<GameInfo> Games { get; } = new();
@@ -130,7 +131,7 @@ namespace BetterUMM.ViewModels
                 }
                 catch (Exception ex)
                 {
-                    await ShowMessageAsync($"Selected item is not a valid .app bundle: {ex.Message}", "Error", Icon.Error);
+                    await ShowMessageAsync($"선택한 항목이 올바른 .app 번들이 아닙니다: {ex.Message}", "오류", Icon.Error);
                     return;
                 }
             }
@@ -138,7 +139,7 @@ namespace BetterUMM.ViewModels
             {
                 var fileTypeFilter = OperatingSystem.IsWindows()
                     ? new[] { new FilePickerFileType("Executable files") { Patterns = new[] { "*.exe" } }, FilePickerFileTypes.All }
-                    : new[] { FilePickerFileTypes.All };
+                    : new[] { new FilePickerFileType("All files") { Patterns = new[] { "*" } } };
 
                 var files = await _window.StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions
                 {
@@ -156,62 +157,29 @@ namespace BetterUMM.ViewModels
 
             var config = _configService.GetGameConfig(folderName) ?? _configService.GetGameConfigByExe(exeName);
 
-            SelectedGame = config != null
-                ? BuildGameInfoFromConfig(config, path, appBundlePath)
-                : BuildGameInfoUnknown(path, appBundlePath, folderName, exeName);
-        }
-
-        private static GameInfo BuildGameInfoFromConfig(GameConfig config, string exePath, string? appBundlePath = null)
-        {
-            string representativePath = appBundlePath ?? exePath;
-            string exeName = Path.GetFileName(representativePath);
             string gameDataPath = appBundlePath != null
                 ? Path.Combine(appBundlePath, "Contents", "Resources", "Data")
-                : Path.Combine(Path.GetDirectoryName(exePath)!, $"{Path.GetFileNameWithoutExtension(exePath)}_Data");
+                : Path.Combine(Path.GetDirectoryName(path)!, $"{Path.GetFileNameWithoutExtension(path)}_Data");
 
-            string assemblyName = !string.IsNullOrEmpty(config.EntryPoint) && config.EntryPoint.Split('[', ']').Length > 2
-                ? config.EntryPoint.Split('[', ']')[1]
-                : "Assembly-CSharp.dll";
-
-            return new GameInfo
+            SelectedGame = new GameInfo
             {
-                Name             = config.Name,
-                Path             = appBundlePath ?? exePath,
-                GameDataPath     = gameDataPath,
-                AssemblyName     = assemblyName,
-                PatchTarget      = config.EntryPoint,
+                Name = config?.Name ?? Path.GetFileNameWithoutExtension(representativePath),
+                Path = appBundlePath ?? path,
+                GameDataPath = gameDataPath,
+                AssemblyName = config != null ? (config.EntryPoint.Split('[', ']').Length > 2 ? config.EntryPoint.Split('[', ']')[1] : "Assembly-CSharp.dll") : "Assembly-CSharp.dll",
+                PatchTarget = config?.EntryPoint ?? string.Empty,
                 CurrentPatchMethod = PatchMethod.Doorstop,
-                Folder           = config.Folder,
-                ModsDirectory    = config.ModsDirectory,
-                ModInfo          = config.ModInfo,
-                GameExe          = string.IsNullOrEmpty(config.GameExe) ? exeName : config.GameExe,
-                EntryPoint       = config.EntryPoint,
-                StartingPoint    = config.StartingPoint,
-                UIStartingPoint  = config.UIStartingPoint,
-                OldPatchTarget   = config.OldPatchTarget,
-                GameVersionPoint = config.GameVersionPoint,
-                MinimalManagerVersion = config.MinimalManagerVersion,
-                HarmonyVersion   = config.HarmonyVersion
-            };
-        }
-
-        private static GameInfo BuildGameInfoUnknown(string exePath, string? appBundlePath, string folderName, string exeName)
-        {
-            string gameDataPath = appBundlePath != null
-                ? Path.Combine(appBundlePath, "Contents", "Resources", "Data")
-                : Path.Combine(Path.GetDirectoryName(exePath)!, $"{Path.GetFileNameWithoutExtension(exePath)}_Data");
-
-            return new GameInfo
-            {
-                Name          = Path.GetFileNameWithoutExtension(appBundlePath ?? exePath),
-                Path          = appBundlePath ?? exePath,
-                GameDataPath  = gameDataPath,
-                AssemblyName  = "Assembly-CSharp.dll",
-                CurrentPatchMethod = PatchMethod.Doorstop,
-                Folder        = folderName,
-                ModsDirectory = "Mods",
-                ModInfo       = "Info.json",
-                GameExe       = exeName
+                Folder = config?.Folder ?? folderName,
+                ModsDirectory = config?.ModsDirectory ?? "Mods",
+                ModInfo = config?.ModInfo ?? "Info.json",
+                GameExe = config?.GameExe ?? exeName,
+                EntryPoint = config?.EntryPoint ?? string.Empty,
+                StartingPoint = config?.StartingPoint ?? string.Empty,
+                UIStartingPoint = config?.UIStartingPoint ?? string.Empty,
+                OldPatchTarget = config?.OldPatchTarget ?? string.Empty,
+                GameVersionPoint = config?.GameVersionPoint ?? string.Empty,
+                MinimalManagerVersion = config?.MinimalManagerVersion ?? string.Empty,
+                HarmonyVersion = config?.HarmonyVersion ?? string.Empty
             };
         }
 
@@ -239,6 +207,9 @@ namespace BetterUMM.ViewModels
             }
         }
 
+        // macOS에서는 GameInfo.Path가 .app 번들 디렉터리 자체를 가리키므로
+        // 실행 파일 기준 GetDirectoryName을 적용하면 한 단계 위 폴더가 된다.
+        // UnixDoorstopPatchService.ResolvePaths와 동일한 기준으로 루트 디렉터리를 계산한다.
         private static string GetGameRootDirectory(GameInfo game) =>
             OperatingSystem.IsMacOS() ? game.Path : Path.GetDirectoryName(game.Path)!;
 
@@ -252,10 +223,12 @@ namespace BetterUMM.ViewModels
             string modsPath = Path.Combine(gameDir, SelectedGame.ModsDirectory);
             string paramsPath = ModService.GetParamsPath(SelectedGame.GameDataPath);
 
+            _modService.EnsureFontConfigured(paramsPath);
+
             var mods = _modService.ScanMods(modsPath, paramsPath);
             foreach (var mod in mods)
             {
-                mod.MarkAsClean();
+                mod.MarkAsClean(); // 로드 시점을 기준으로 dirty 추적 시작
                 mod.PropertyChanged += OnModPropertyChanged;
                 Mods.Add(mod);
             }
@@ -288,11 +261,11 @@ namespace BetterUMM.ViewModels
                     mod.MarkAsClean();
 
                 NotifyHasUnsavedChangesChanged();
-                await ShowMessageAsync($"{dirtyMods.Count} mod state(s) saved.", "Saved", Icon.Info);
+                await ShowMessageAsync($"{dirtyMods.Count}개 모드 상태가 저장되었습니다.", "저장 완료", Icon.Info);
             }
             catch (Exception ex)
             {
-                await ShowMessageAsync($"Failed to save: {ex.Message}", "Error", Icon.Error);
+                await ShowMessageAsync($"저장 실패: {ex.Message}", "오류", Icon.Error);
             }
         }
 
@@ -300,13 +273,13 @@ namespace BetterUMM.ViewModels
         {
             if (SelectedGame == null || string.IsNullOrEmpty(SelectedGame.Path))
             {
-                await ShowMessageAsync("Please select a game first.", "No Game Selected", Icon.Warning);
+                await ShowMessageAsync("게임을 먼저 선택하세요.");
                 return;
             }
 
             var files = await _window.StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions
             {
-                Title = "Select Mod Zip File",
+                Title = "모드 zip 파일 선택",
                 AllowMultiple = false,
                 FileTypeFilter = new[] { new FilePickerFileType("Zip files") { Patterns = new[] { "*.zip" } } }
             });
@@ -319,22 +292,18 @@ namespace BetterUMM.ViewModels
             try
             {
                 _modService.InstallMod(files[0].Path.LocalPath, modsPath);
-                LoadMods();
-                await ShowMessageAsync("Mod installed successfully.", "Installed", Icon.Info);
+                LoadMods(); // 설치 후 목록 갱신
+                await ShowMessageAsync("모드가 설치되었습니다.", "설치 완료", Icon.Info);
             }
             catch (Exception ex)
             {
-                await ShowMessageAsync($"Installation failed: {ex.Message}", "Error", Icon.Error);
+                await ShowMessageAsync($"설치 실패: {ex.Message}", "오류", Icon.Error);
             }
         }
 
         private async Task PatchSelectedGameAsync()
         {
-            if (SelectedGame == null || string.IsNullOrEmpty(SelectedGame.Path))
-            {
-                await ShowMessageAsync("Please select a game first.", "No Game Selected", Icon.Warning);
-                return;
-            }
+            if (SelectedGame == null || string.IsNullOrEmpty(SelectedGame.Path)) return;
 
             bool ok;
             if (IsUmmInstalled)
@@ -344,7 +313,7 @@ namespace BetterUMM.ViewModels
                     : _patchService.RemoveAssembly(SelectedGame);
 
                 if (ok) RefreshPatchStatus();
-                await ShowMessageAsync(ok ? "Uninstalled successfully!" : "Uninstall failed. Check logs.");
+                await ShowMessageAsync(ok ? "제거 성공!" : "제거 실패. 로그를 확인하세요.");
                 return;
             }
 
@@ -352,37 +321,28 @@ namespace BetterUMM.ViewModels
             string ummSourceDir = Path.Combine(baseDir, "UnityModManager");
             if (!Directory.Exists(ummSourceDir))
             {
-                await ShowMessageAsync($"UnityModManager resource folder not found:\n{ummSourceDir}", "Resource Not Found", Icon.Error);
+                await ShowMessageAsync($"UnityModManager 리소스 폴더를 찾을 수 없습니다: {ummSourceDir}");
                 return;
             }
 
             string[] libs = Directory.GetFiles(ummSourceDir, "*", SearchOption.AllDirectories);
             if (libs.Length == 0)
             {
-                await ShowMessageAsync("UnityModManager library files not found.", "Resource Not Found", Icon.Error);
+                await ShowMessageAsync("UnityModManager 라이브러리 파일을 찾을 수 없습니다.");
                 return;
             }
 
             if (SelectedGame.CurrentPatchMethod == PatchMethod.Doorstop)
-                ok = _patchService.InstallDoorstop(SelectedGame, libs);
-            else
-                ok = _patchService.InstallAssembly(SelectedGame, libs);
-
-            if (ok)
             {
-                string gameDir = GetGameRootDirectory(SelectedGame);
-                string modsPath = Path.Combine(gameDir, SelectedGame.ModsDirectory);
-                if (!Directory.Exists(modsPath))
-                    Directory.CreateDirectory(modsPath);
-
-                RefreshPatchStatus();
+                ok = _patchService.InstallDoorstop(SelectedGame, libs);
+            }
+            else
+            {
+                ok = _patchService.InstallAssembly(SelectedGame, libs);
             }
 
-            string logPath = Path.Combine(baseDir, "logs");
-            await ShowMessageAsync(
-                ok ? "Patch successful!" : $"Patch failed. Check logs.\nLog location: {logPath}",
-                ok ? "Done" : "Error",
-                ok ? Icon.Info : Icon.Error);
+            if (ok) RefreshPatchStatus();
+            await ShowMessageAsync(ok ? "패치 성공!" : "패치 실패. 로그를 확인하세요.");
         }
 
         private static async Task ShowMessageAsync(string message, string title = "", Icon icon = Icon.None)
