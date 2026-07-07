@@ -94,6 +94,7 @@ namespace BetterUMM.ViewModels
         public ICommand SelectGameCommand { get; }
         public ICommand SaveModStatesCommand => _saveModStatesCommand;
         public ICommand InstallModCommand { get; }
+        public ICommand DeleteModCommand { get; }
 
         public MainViewModel(Window window)
         {
@@ -108,6 +109,7 @@ namespace BetterUMM.ViewModels
             SelectGameCommand     = new RelayCommand(async _ => await SelectGameAsync());
             _saveModStatesCommand = new RelayCommand(async _ => await SaveModStatesAsync(), _ => HasUnsavedChanges);
             InstallModCommand     = new RelayCommand(async _ => await InstallModAsync());
+            DeleteModCommand      = new RelayCommand(async param => await DeleteModAsync(param as ModInfo));
         }
 
         private async Task SelectGameAsync()
@@ -298,6 +300,30 @@ namespace BetterUMM.ViewModels
             catch (Exception ex)
             {
                 await ShowMessageAsync($"설치 실패: {ex.Message}", "오류", Icon.Error);
+            }
+        }
+
+        private async Task DeleteModAsync(ModInfo? mod)
+        {
+            if (mod == null) return;
+
+            var confirmBox = MessageBoxManager.GetMessageBoxStandard(
+                "Delete Mod",
+                $"Delete '{mod.DisplayName}'? This will permanently remove its folder and cannot be undone.",
+                ButtonEnum.YesNo,
+                Icon.Warning);
+            var result = await confirmBox.ShowAsync();
+            if (result != ButtonResult.Yes) return;
+
+            try
+            {
+                _modService.UninstallMod(mod);
+                LoadMods();
+                await ShowMessageAsync($"'{mod.DisplayName}' was deleted.", "Deleted", Icon.Info);
+            }
+            catch (Exception ex)
+            {
+                await ShowMessageAsync($"Failed to delete mod: {ex.Message}", "Error", Icon.Error);
             }
         }
 
