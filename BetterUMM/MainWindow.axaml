@@ -87,6 +87,7 @@
                                 <ColumnDefinition Width="100"/>
                                 <ColumnDefinition Width="150"/>
                                 <ColumnDefinition Width="20"/>
+                                <ColumnDefinition Width="30"/>
                             </Grid.ColumnDefinitions>
                             <TextBlock Grid.Column="0" Text="Enabled" FontWeight="SemiBold" HorizontalAlignment="Center"/>
                             <TextBlock Grid.Column="1" Text="Name" FontWeight="SemiBold" Margin="4,0"/>
@@ -112,6 +113,7 @@
                                             <ColumnDefinition Width="100"/>
                                             <ColumnDefinition Width="150"/>
                                             <ColumnDefinition Width="20"/>
+                                            <ColumnDefinition Width="30"/>
                                         </Grid.ColumnDefinitions>
                                         <CheckBox Grid.Column="0" IsChecked="{Binding IsEnabled}"
                                                   HorizontalAlignment="Center" VerticalAlignment="Center"/>
@@ -125,6 +127,11 @@
                                                  ToolTip.Tip="Unsaved changes"
                                                  IsVisible="{Binding IsDirty}"
                                                  VerticalAlignment="Center" HorizontalAlignment="Center"/>
+                                        <Button Grid.Column="5" Content="✕" Padding="4,0"
+                                                ToolTip.Tip="Delete mod"
+                                                Command="{Binding $parent[ListBox].((vm:MainViewModel)DataContext).DeleteModCommand}"
+                                                CommandParameter="{Binding}"
+                                                HorizontalAlignment="Center" VerticalAlignment="Center"/>
                                     </Grid>
                                 </Border>
                             </DataTemplate>
