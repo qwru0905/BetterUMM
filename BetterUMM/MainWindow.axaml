@@ -50,6 +50,12 @@
                           Width="100" VerticalAlignment="Center"
                           IsEnabled="{Binding IsUmmInstalled, Converter={StaticResource InverseBooleanConverter}}"
                           IsVisible="{Binding IsUmmInstalled, Converter={StaticResource InverseBooleanConverter}}"/>
+                <TextBlock Text="UMM Build:" VerticalAlignment="Center" Margin="20,0,10,0" FontWeight="Bold"
+                           IsVisible="{Binding IsUmmInstalled, Converter={StaticResource InverseBooleanConverter}}"/>
+                <ComboBox ItemsSource="{Binding AvailableUmmVariants}"
+                          SelectedItem="{Binding SelectedUmmVariant}"
+                          Width="110" VerticalAlignment="Center"
+                          IsVisible="{Binding IsUmmInstalled, Converter={StaticResource InverseBooleanConverter}}"/>
             </StackPanel>
         </StackPanel>
 

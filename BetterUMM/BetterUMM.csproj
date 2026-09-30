@@ -22,6 +22,10 @@
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
       <Link>UnityModManager\%(RecursiveDir)%(FileName)%(Extension)</Link>
     </None>
+    <None Include="Resources\UnityModManagerVanilla\**">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <Link>UnityModManagerVanilla\%(RecursiveDir)%(FileName)%(Extension)</Link>
+    </None>
     <None Update="Resources\UnityModManagerConfig.xml">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
       <Link>UnityModManagerConfig.xml</Link>

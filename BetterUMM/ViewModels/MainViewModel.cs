@@ -89,6 +89,11 @@ namespace BetterUMM.ViewModels
             }
         }
 
+        public IEnumerable<UmmVariant> AvailableUmmVariants => Enum.GetValues<UmmVariant>();
+
+        // Not persisted: applied at the moment "Install UMM" is pressed.
+        public UmmVariant SelectedUmmVariant { get; set; } = UmmVariant.Modified;
+
         public ICommand PatchCommand { get; }
         public ICommand RefreshCommand { get; }
         public ICommand SelectGameCommand { get; }
@@ -344,14 +349,17 @@ namespace BetterUMM.ViewModels
             }
 
             string baseDir = AppDomain.CurrentDomain.BaseDirectory;
-            string ummSourceDir = Path.Combine(baseDir, "UnityModManager");
-            if (!Directory.Exists(ummSourceDir))
+            string[] libs;
+            try
             {
-                await ShowMessageAsync($"UnityModManager 리소스 폴더를 찾을 수 없습니다: {ummSourceDir}");
+                libs = UmmLibraryResolver.Resolve(baseDir, SelectedUmmVariant);
+            }
+            catch (IOException ex)
+            {
+                await ShowMessageAsync(ex.Message);
                 return;
             }
 
-            string[] libs = Directory.GetFiles(ummSourceDir, "*", SearchOption.AllDirectories);
             if (libs.Length == 0)
             {
                 await ShowMessageAsync("UnityModManager 라이브러리 파일을 찾을 수 없습니다.");
